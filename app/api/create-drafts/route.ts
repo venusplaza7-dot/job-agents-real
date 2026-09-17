@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '../../../lib/supabase'
 import { google } from 'googleapis'
 export async function POST(req:Request){
   const {job_id}=await req.json()
@@ -14,7 +14,3 @@ export async function POST(req:Request){
   await supabase.from('jobs').update({status:'draft_created'}).eq('id',job.id)
   return NextResponse.json({success:true, draftId:draft.data.id, message:`Draft created for ${job.company}`})
 }
-
-
-
-
