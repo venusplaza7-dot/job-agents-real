@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '../../../lib/supabase'
 export async function POST(req:Request){
   const {job_id}=await req.json()
   const {data:job}=await supabase.from('jobs').select('*').eq('id',job_id).single()
@@ -15,5 +15,3 @@ export async function POST(req:Request){
   await supabase.from('jobs').update({status:'tailored'}).eq('id',job.id)
   return NextResponse.json({success:true, tailored})
 }
-
-
