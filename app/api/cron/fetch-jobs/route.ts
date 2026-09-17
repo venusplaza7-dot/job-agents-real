@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '../../../../lib/supabase'
 export const dynamic = 'force-dynamic'
 export async function GET() {
   const res = await fetch('https://remoteok.com/api?tag=full%20stack', {
@@ -29,4 +29,3 @@ export async function GET() {
   }
   return NextResponse.json({success:true, fetched:aiJobs.length, inserted, message:`REAL FETCH - ${inserted} jobs from RemoteOK API`})
 }
-
