@@ -1,0 +1,2 @@
+CREATE TABLE jobs (id TEXT PRIMARY KEY, title TEXT, company TEXT, url TEXT, description TEXT, tags TEXT[], salary TEXT, location TEXT, source TEXT DEFAULT 'remoteok', score INT DEFAULT 0, status TEXT DEFAULT 'new', created_at TIMESTAMPTZ DEFAULT NOW());
+CREATE TABLE tailored_resumes (id SERIAL PRIMARY KEY, job_id TEXT REFERENCES jobs(id), company TEXT, tailored_bullets JSONB, created_at TIMESTAMPTZ DEFAULT NOW());
