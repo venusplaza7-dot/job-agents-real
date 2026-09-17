@@ -1,31 +1,34 @@
 import { NextResponse } from 'next/server'
-import { supabase } from '../../../../lib/supabase'
-export const dynamic = 'force-dynamic'
-export async function GET() {
-  const res = await fetch('https://remoteok.com/api?tag=full%20stack', {
-    headers: { 'User-Agent': 'Imran-Afzal-Job-Agent/1.0 (Venusplaza7@gmail.com)' }
-  })
-  const data = await res.json()
-  const jobs = data.slice(1).filter((j:any)=>j.position)
-  const aiJobs = jobs.filter((j:any)=>{
-    const t = `${j.position} ${j.description} ${j.tags}`.toLowerCase()
-    return t.includes('ai') || t.includes('typescript') || t.includes('full stack')
-  }).slice(0,20)
-  let inserted=0
-  for(const job of aiJobs){
-    let score=0
-    const jd = `${job.position} ${job.description}`.toLowerCase()
-    if(jd.includes('typescript')) score+=30
-    if(jd.includes('react')) score+=20
-    if(jd.includes('aws')) score+=15
-    if(jd.includes('ai')) score+=25
-    const {error} = await supabase.from('jobs').upsert({
-      id: String(job.id), title: job.position, company: job.company,
-      url: job.url, description: job.description?.substring(0,8000),
-      tags: job.tags||[], location: job.location||'Remote',
-      source:'remoteok', score, status: score>=80?'high_match':'new'
-    },{onConflict:'id'})
-    if(!error) inserted++
+import { createClient } from '@supabase/supabase-js'
+export const dynamic='force-dynamic'
+export async function GET(){
+  const supabase = createClient(
+    process.env.SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_KEY!
+  )
+  try{
+    const r=await fetch('https://remoteok.com/api',{headers:{'User-Agent':'Mozilla/5.0'}})
+    const d=await r.json()
+    const jobs=d.filter((j:any)=>j.position).slice(0,5)
+    let inserted=0
+    let lastError=""
+    for(const j of jobs){
+      const {error}=await supabase.from('jobs').insert({
+        id:String(j.id),
+        title:j.position,
+        company:j.company,
+        url:j.url,
+        description:(j.description||'').slice(0,2000),
+        tags: (j.tags||[]).slice(0,5),
+        location:'Remote',
+        source:'remoteok',
+        score:80,
+        status:'new'
+      })
+      if(error){ lastError=error.message } else { inserted++ }
+    }
+    return NextResponse.json({success:true,fetched:jobs.length,inserted,lastError, note:"REAL"})
+  }catch(e:any){
+    return NextResponse.json({success:false,error:e.message},{status:500})
   }
-  return NextResponse.json({success:true, fetched:aiJobs.length, inserted, message:`REAL FETCH - ${inserted} jobs from RemoteOK API`})
 }
