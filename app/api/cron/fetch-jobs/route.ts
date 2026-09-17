@@ -5,9 +5,9 @@ export const dynamic = 'force-dynamic'
 export async function GET() {
   const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || ""
   const key = process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
-
+  
   if (!url) {
-    return NextResponse.json({ success: false, error: `supabaseUrl is required - env missing. Has SUPABASE_URL: ${!!process.env.SUPABASE_URL}, Has NEXT_PUBLIC_SUPABASE_URL: ${!!process.env.NEXT_PUBLIC_SUPABASE_URL}` }, { status: 500 })
+    return NextResponse.json({ success: false, error: "SUPABASE_URL missing in Vercel env" }, { status: 500 })
   }
 
   const supabase = createClient(url, key)
@@ -19,7 +19,7 @@ export async function GET() {
     let inserted = 0
     let lastErr = ""
     for (const j of jobs) {
-      const { error } = await supabase.from('jobs').insert({
+      const { error } = await supabase.from('jobs').upsert({
         id: String(j.id),
         title: j.position,
         company: j.company,
@@ -30,11 +30,11 @@ export async function GET() {
         source: 'remoteok',
         score: 80,
         status: 'new'
-      })
+      }, { onConflict: 'id' })
       if (error) lastErr = error.message
       else inserted++
     }
-    return NextResponse.json({ success: true, fetched: jobs.length, inserted, lastErr, usedUrl: url.slice(0,20) })
+    return NextResponse.json({ success: true, fetched: jobs.length, inserted, lastErr })
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 })
   }
