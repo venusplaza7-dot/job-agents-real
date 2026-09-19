@@ -1,39 +1,38 @@
+export const runtime = 'nodejs';
+
 import { ImapFlow } from 'imapflow';
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY
-);
-
 export async function GET() {
-  // 1. Get jobs from Supabase that don't have draft yet
-  const { data: jobs } = await supabase.from('jobs').select('*').limit(3);
+  try {
+    const supabase = createClient(
+      process.env.SUPABASE_URL! as string,
+      process.env.SUPABASE_ANON_KEY! as string
+    );
 
-  const client = new ImapFlow({
-    host: 'imap.gmail.com',
-    port: 993,
-    secure: true,
-    auth: {
-      user: process.env.GMAIL_USER, // venusplaza7@gmail.com
-      pass: process.env.GMAIL_APP_PASSWORD, // gblqhhbcnhhytjtl without spaces
+    const { data: jobs } = await supabase.from('jobs').select('*').limit(3);
+
+    const client = new ImapFlow({
+      host: 'imap.gmail.com',
+      port: 993,
+      secure: true,
+      auth: {
+        user: process.env.GMAIL_USER! as string,
+        pass: process.env.GMAIL_APP_PASSWORD! as string,
+      }
+    });
+
+    await client.connect();
+    let count = 0;
+    for (const job of jobs || []) {
+      const raw = `From: ${process.env.GMAIL_USER}\r\nTo: ${process.env.GMAIL_USER}\r\nSubject: Draft - ${job?.title || 'Job'}\r\nContent-Type: text/html; charset=utf-8\r\n\r\n<p>Draft for ${job?.title} at ${job?.company}</p>`;
+      await client.append('[Gmail]/Drafts', raw);
+      count++;
     }
-  });
+    await client.logout();
 
-  await client.connect();
-  let count = 0;
-
-  for (const job of jobs) {
-    const emailBody = `From: ${process.env.GMAIL_USER}\r\n` +
-      `To: ${process.env.GMAIL_USER}\r\n` +
-      `Subject: Application Draft - ${job.title || 'Job'}\r\n` +
-      `Content-Type: text/html; charset=utf-8\r\n\r\n` +
-      `<p>Hi Hiring Manager,</p><p>Draft for ${job.company} - ${job.title}</p>`;
-
-    await client.append('[Gmail]/Drafts', emailBody);
-    count++;
+    return Response.json({ success: true, drafts_created: count });
+  } catch (e: any) {
+    return Response.json({ success: false, error: e?.message || String(e) }, { status: 500 });
   }
-
-  await client.logout();
-  return Response.json({ success: true, drafts_created: count });
 }
