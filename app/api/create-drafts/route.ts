@@ -1,13 +1,14 @@
-export const runtime = 'nodejs';
 import { ImapFlow } from 'imapflow';
 
 export async function GET() {
   try {
-    const gmailUser = (process.env.USER_EMAIL || process.env.GMAIL_USER || '').trim();
-    const gmailPass = (process.env.GMAIL_APP_PASSWORD || process.env.GMAIL_APP_PASS || '').replace(/\s/g, '');
+    const gmailUser = process.env.USER_EMAIL;
+    const gmailPass = process.env.GMAIL_APP_PASSWORD;
 
-    if (!gmailPass) return Response.json({ success: false, error: 'GMAIL_APP_PASSWORD blank' });
-    
+    if (!gmailUser || !gmailPass) {
+      return Response.json({ success: false, error: 'Missing env USER_EMAIL / GMAIL_APP_PASSWORD' }, { status: 500 });
+    }
+
     const client = new ImapFlow({
       host: 'imap.gmail.com',
       port: 993,
@@ -17,17 +18,42 @@ export async function GET() {
     });
 
     await client.connect();
-    
-    const jobs = [{title:'Test 1', company:'Google'}, {title:'Test 2', company:'Amazon'}];
-    let count = 0;
-    for (const j of jobs) {
-      const raw = `From: ${gmailUser}\r\nTo: ${gmailUser}\r\nSubject: Draft - ${j.title}\r\nContent-Type: text/html; charset=utf-8\r\n\r\nTest ${j.title}`;
-      await client.append('Drafts', raw);
-      count++;
+
+    // DEBUG: find the correct drafts path
+    // const boxes = await client.list();
+    // console.log(boxes.map(b => b.path));
+
+    let draftFolder = '[Gmail]/Drafts';
+    try {
+      await client.mailboxOpen(draftFolder);
+    } catch {
+      draftFolder = '[Google Mail]/Drafts'; // UK / other locales
     }
+    await client.mailboxClose();
+
+    const jobs = [{ title: 'Test 1', company: 'Test Co' }];
+
+    for (const j of jobs) {
+      const raw = [
+        `From: ${gmailUser}`,
+        `To: ${gmailUser}`,
+        `Subject: Application - ${j.title} at ${j.company}`,
+        `Date: ${new Date().toUTCString()}`,
+        `Content-Type: text/plain; charset=utf-8`,
+        `X-Unsent: 1`,
+        ``,
+        `Hello, this is a draft for ${j.title}`,
+        ``
+      ].join('\r\n');
+
+      await client.append(draftFolder, raw, { flags: ['\\Draft'] });
+    }
+
     await client.logout();
-    return Response.json({ success: true, drafts_created: count, user: gmailUser });
+    return Response.json({ success: true, count: jobs.length, folder: draftFolder });
+
   } catch (e: any) {
-    return Response.json({ success: false, error: `IMAP Error: ${e.message}`, detail: String(e) }, { status: 500 });
+    console.error('IMAP FULL ERROR:', e);
+    return Response.json({ success: false, error: 'IMAP Error: Command failed', detail: e.message, stack: e.stack }, { status: 500 });
   }
 }
