@@ -1,115 +1,90 @@
-import { ImapFlow } from 'imapflow';
+import { google } from 'googleapis';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const gmailUser = process.env.USER_EMAIL;
-  const gmailPass = process.env.GMAIL_APP_PASSWORD;
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  try {
+    const clientId = process.env.GMAIL_CLIENT_ID;
+    const clientSecret = process.env.GMAIL_CLIENT_SECRET;
+    const refreshToken = process.env.GMAIL_REFRESH_TOKEN;
+    const gmailUser = process.env.GMAIL_USER;
 
-  if (!gmailUser ||!gmailPass) {
+    if (!clientId || !clientSecret || !refreshToken || !gmailUser) {
+      return Response.json({
+        success: false,
+        fetched: 0,
+        inserted: 0,
+        lastErr: 'Missing GMAIL_ env vars',
+        envOk: false,
+      }, { status: 500 });
+    }
+
+    // 1. Auth to Gmail
+    const oauth2Client = new google.auth.OAuth2(clientId, clientSecret);
+    oauth2Client.setCredentials({ refresh_token: refreshToken });
+    const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+
+    // 2. Fetch jobs from Supabase - using SERVICE_ROLE_KEY
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+    
+    if (!supabaseUrl || !serviceKey) {
+      throw new Error('Missing SUPABASE_URL or SERVICE_KEY');
+    }
+    
+    const supabase = createClient(supabaseUrl, serviceKey);
+    const { data: jobs, error } = await supabase.from('jobs').select('*').limit(3);
+    
+    if (error) throw error;
+    
+    const fetched = jobs?.length || 0;
+    let inserted = 0;
+    let lastErr = '';
+
+    // 3. Create drafts
+    for (const job of jobs || []) {
+      try {
+        const subject = `Application: ${job.title || 'Role'} at ${job.company || ''}`;
+        const to = job.contact_email || job.email || gmailUser;
+        const body = job.cover_letter || job.body || `Hi, applying for ${job.title}`;
+
+        const rawMessage = [
+          `From: ${gmailUser}`,
+          `To: ${to}`,
+          `Subject: ${subject}`,
+          `Content-Type: text/html; charset=utf-8`,
+          `MIME-Version: 1.0`,
+          ``,
+          `${body}`,
+        ].join('\n');
+
+        const encoded = Buffer.from(rawMessage)
+          .toString('base64')
+          .replace(/\+/g, '-')
+          .replace(/\//g, '_')
+          .replace(/=+$/, '');
+
+        await gmail.users.drafts.create({
+          userId: 'me',
+          requestBody: {
+            message: { raw: encoded },
+          },
+        });
+        inserted++;
+      } catch (e: any) {
+        lastErr = e.message;
+        console.error(e);
+      }
+    }
+
+    return Response.json({ success: true, fetched, inserted, lastErr, envOk: true });
+
+  } catch (e: any) {
     return Response.json({
       success: false,
       fetched: 0,
       inserted: 0,
-      lastErr: 'Missing USER_EMAIL or GMAIL_APP_PASSWORD',
-      envOk: false
-    }, { status: 500 });
-  }
-
-  const client = new ImapFlow({
-    host: 'imap.gmail.com',
-    port: 993,
-    secure: true,
-    auth: {
-      user: gmailUser,
-      pass: gmailPass,
-    },
-    logger: false,
-  });
-
-  let fetched = 0;
-  let inserted = 0;
-  let lastErr = '';
-
-  try {
-    await client.connect();
-
-    // Find correct Drafts folder for your Gmail language
-    let draftFolder = '[Gmail]/Drafts';
-    try {
-      await client.mailboxOpen(draftFolder);
-      await client.mailboxClose();
-    } catch {
-      draftFolder = '[Google Mail]/Drafts';
-      await client.mailboxOpen(draftFolder);
-      await client.mailboxClose();
-    }
-
-    // --- Replace this with your Supabase fetch ---
-    // Example: fetch from Supabase table "jobs"
-    // const { createClient } = await import('@supabase/supabase-js');
-    // const supabase = createClient(supabaseUrl!, supabaseKey!);
-    // const { data: jobs } = await supabase.from('jobs').select('*').limit(3);
-
-    // Mock data to match your screenshot that returned 3
-    const jobs = [
-      { title: 'Software Engineer', company: 'Figure AI', email: 'brett@figure.ai', body: 'Hi Brett Adcock, saw Figure...' },
-      { title: 'Frontend Dev', company: 'Venus Inc', email: 'hiring@venus.com', body: 'Hi, I am Venus, 15-per-hour...' },
-      { title: 'Next.js Dev', company: 'Hunt', email: 'hunt@example.com', body: 'Hello, I am interested in Hunt role...' },
-    ];
-
-    fetched = jobs.length;
-
-    for (const job of jobs) {
-      try {
-        const subject = `Application: ${job.title} at ${job.company}`;
-        const to = job.email;
-        const now = new Date();
-
-        // This raw format fixes (no subject) and date issue
-        const raw = [
-          `From: ${gmailUser}`,
-          `To: ${to}`,
-          `Subject: ${subject}`,
-          `Date: ${now.toUTCString()}`,
-          `Content-Type: text/html; charset=utf-8`,
-          `MIME-Version: 1.0`,
-          `X-Unsent: 1`,
-          `Message-ID: <${now.getTime()}@job-agents>`,
-          ``,
-          `<div>${job.body}<br><br>Regards,<br>Venus</div>`,
-          ``,
-        ].join('\r\n');
-
-        await client.append(draftFolder, raw, {
-          internalDate: now,
-        } as any);
-
-        inserted++;
-      } catch (e: any) {
-        lastErr = e.message;
-        console.error('Failed job', job, e);
-      }
-    }
-
-    await client.logout();
-
-    return Response.json({
-      success: true,
-      fetched,
-      inserted,
-      lastErr,
-      envOk: true,
-    });
-
-  } catch (e: any) {
-    try { await client.logout(); } catch {}
-    return Response.json({
-      success: false,
-      fetched,
-      inserted,
       lastErr: e.message,
       envOk: true,
     }, { status: 500 });
