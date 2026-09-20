@@ -5,7 +5,7 @@ export async function GET() {
 try {
  const supabaseUrl = process.env.SUPABASE_URL
  const serviceKey = process.env.SUPABASE_SECRET_KEY
- // TEST: hardcoded your key + env fallback
+ // Your Gemini key hardcoded for personal project
  const geminiKey = process.env.GEMINI_API_KEY || "AQ.Ab8RN6K2hIAyxC5qicoz357viYxNYmaqkhZq7bDGYfV_RCqMXg"
 
  if (!supabaseUrl ||!serviceKey ||!geminiKey) {
@@ -26,7 +26,7 @@ try {
 
  for (const job of jobs) {
   const jd = (job.description || '').slice(0, 3000)
-  const prompt = `Return JSON ONLY: {"keywords":["js","react"],"tailored_summary":"summary for ${job.title}","cover_letter":"cover letter"} Job: ${job.title} at ${job.company} - ${jd}`;
+  const prompt = `You are AI resume tailor. Return JSON ONLY: {"keywords":["keyword1"],"tailored_summary":"2 line summary for AI Developer role","cover_letter":"cover letter 150 words"} Job: ${job.title} at ${job.company} - ${jd}`;
 
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
    method: 'POST',
@@ -42,7 +42,6 @@ try {
   }
 
   const rawText = json.candidates?.[0]?.content?.parts?.[0]?.text || '{}'
-  // clean markdown ```json
   const clean = rawText.replace(/```json|```/g,'').trim()
   const content = JSON.parse(clean);
 
@@ -57,8 +56,9 @@ try {
   tailored.push({ id: job.id, title: job.title,...content });
  }
 
- return Response.json({ success: true, tailored, count: tailored.length, key_used: geminiKey.slice(0,10)+"..." })
+ return Response.json({ success: true, tailored, count: tailored.length })
 } catch (e: any) {
  return Response.json({ success: false, error: e.message }, { status: 500 })
+}
 }
 }
