@@ -1,101 +1,33 @@
-import { createClient } from '@supabase/supabase-js'
-export const dynamic = 'force-dynamic';
+import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import { Resend } from "resend";
+
+export const dynamic = "force-dynamic";
 
 export async function GET() {
- try {
-  const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SECRET_KEY!)
-  const geminiKey = (process.env.GEMINI_API_KEY || "AQ.Ab8RN6K2hIAyxC5qicoz357viYxNYmaqkhZq7bDGYfV_RCqMXg").trim()
-  const brevoKey = process.env.BREVO_API_KEY!
-  const myEmail = process.env.MY_EMAIL || "ron@venushq7.com"
+  const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SECRET_KEY!);
+  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-  // 1. FETCH - fetch 3 only for test
-  const resFetch = await fetch('https://remotive.com/api/remote-jobs?search=AI%20developer', { cache: 'no-store' })
-  const jsonFetch = await resFetch.json()
-  let inserted = 0
-  let insertErrors: any[] = []
-  for (const j of (jsonFetch.jobs || []).slice(0, 3)) {
-   const { data: exists } = await supabase.from('jobs').select('id').eq('external_id', j.id.toString()).maybeSingle()
-   if (exists) continue
-   const { error } = await supabase.from('jobs').insert({
-    external_id: j.id.toString(),
-    title: j.title,
-    company: j.company_name,
-    location: 'Remote',
-    description: (j.description || '').slice(0, 5000),
-    url: j.url,
-    tailored: false,
-    emailed: false
-   })
-   if (error) insertErrors.push(error.message)
-   else inserted++
+  const { count: total } = await supabase.from("jobs").select("*", { count: "exact", head: true });
+  const { data: toTailor } = await supabase.from("jobs").select("*").eq("tailored", false).limit(2);
+
+  let tailored = 0, emailed = 0, errors:any[] = [];
+  for (const job of toTailor || []) {
+    try {
+      const prompt = `Job: ${job.title} at ${job.company}\nDesc: ${(job.description||"").slice(0,2000)}\nReturn JSON: {"tailored_summary":"...","cover_letter":"..."}`;
+      const result = await model.generateContent(prompt);
+      const text = result.response.text();
+      await supabase.from("jobs").update({ tailored: true, tailored_summary: text.slice(0,500) }).eq("id", job.id);
+      tailored++;
+      if (process.env.RESEND_API_KEY) {
+        const resend = new Resend(process.env.RESEND_API_KEY);
+        await resend.emails.send({ from: "onboarding@resend.dev", to: ["ron@venushq7.com"], subject: `Tailored: ${job.title}`, html: text });
+        await supabase.from("jobs").update({ emailed: true }).eq("id", job.id);
+        emailed++;
+      }
+    } catch (e:any) { errors.push(e.message); }
   }
-
-  // 2. TAILOR - NO FILTER BUG - just get 2 latest jobs that are not tailored
-  const { data: allJobs, error: selErr } = await supabase.from('jobs').select('*').order('created_at', { ascending: false }).limit(10)
-  
-  const jobsToTailor = (allJobs || []).filter((j: any) => j.tailored !== true).slice(0, 2)
-  
-  let tailored = 0
-  let tailorError = null
-  for (const job of jobsToTailor) {
-   try {
-    const jd = (job.description || '').slice(0, 2000)
-    const prompt = `Return JSON ONLY: {"keywords":["AI"],"tailored_summary":"summary for AI dev","cover_letter":"cover letter 80 words for ${job.title}"} Job: ${jd}`
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
-     method: 'POST',
-     headers: { 'Content-Type': 'application/json' },
-     body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-    })
-    const jj = await r.json()
-    if (!jj.candidates) throw new Error(JSON.stringify(jj).slice(0, 400))
-    const raw = jj.candidates[0].content.parts[0].text
-    const content = JSON.parse(raw.replace(/```json|```/g, '').trim())
-    await supabase.from('jobs').update({
-     tailored: true,
-     tailored_summary: content.tailored_summary,
-     cover_letter: content.cover_letter,
-     matched_keywords: content.keywords
-    }).eq('id', job.id)
-    tailored++
-   } catch (e: any) {
-    tailorError = e.message
-   }
-  }
-
-  // 3. EMAIL - same fix no filter
-  const { data: allJobs2 } = await supabase.from('jobs').select('*').order('created_at', { ascending: false }).limit(10)
-  const jobsToEmail = (allJobs2 || []).filter((j: any) => j.tailored === true && j.emailed !== true).slice(0, 1)
-  
-  let emailed = 0
-  for (const job of jobsToEmail) {
-   await fetch('https://api.brevo.com/v3/smtp/email', {
-    method: 'POST',
-    headers: { 'api-key': brevoKey, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-     sender: { email: myEmail, name: "Ron" },
-     to: [{ email: myEmail }],
-     bcc: [{ email: myEmail }],
-     subject: `AI Dev - ${job.company} - ${job.title}`,
-     htmlContent: `<h3>${job.title} at ${job.company}</h3><p><a href="${job.url}">${job.url}</a></p><p>${job.tailored_summary}</p><p>${job.cover_letter}</p>`
-    })
-   })
-   await supabase.from('jobs').update({ emailed: true }).eq('id', job.id)
-   emailed++
-  }
-
-  return Response.json({
-   success: true,
-   inserted,
-   insertErrors,
-   total_in_db: allJobs?.length || 0,
-   found_to_tailor: jobsToTailor.length,
-   tailored,
-   emailed,
-   bcc: myEmail,
-   selErr: selErr?.message,
-   tailorError
-  })
- } catch (e: any) {
-  return Response.json({ success: false, error: e.message }, { status: 500 })
- }
+  return NextResponse.json({ success: true, total_in_db: total, tailored, emailed, errors });
 }
