@@ -2,16 +2,12 @@
   "name": "job-agents-real",
   "version": "1.0.0",
   "private": true,
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start"
-  },
+  "scripts": { "dev": "next dev", "build": "next build", "start": "next start" },
   "dependencies": {
     "next": "14.2.5",
     "react": "^18",
     "react-dom": "^18",
-    "@google/generative-ai": "^0.21.0",
+    "@google/genai": "^0.14.1",
     "@supabase/supabase-js": "^2.45.0",
     "resend": "^4.0.0"
   },
