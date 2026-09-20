@@ -2,25 +2,36 @@ import { createClient } from '@supabase/supabase-js'
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
+ try {
   const supabaseUrl = process.env.SUPABASE_URL!
-  const serviceKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY!
-  
-  if (!supabaseUrl || !serviceKey) {
-    return Response.json({ success: false, error: 'Missing Supabase envs', envOk: false }, { status: 500 })
-  }
-
+  const serviceKey = process.env.SUPABASE_SECRET_KEY!
   const supabase = createClient(supabaseUrl, serviceKey)
 
-  // Mock 3 jobs for now - replace with your real API fetch later
-  const jobs = [
-    { title: 'Principal Product Manager, AI Platform', company: 'Scale AI', description: 'Lead AI product strategy, LLMs, Next.js, TypeScript, remote', source: 'mock', tailored: false },
-    { title: 'AI Trainer - Image QA', company: 'Invisible Technologies', description: 'Train AI models, image QA, Python, attention to detail', source: 'mock', tailored: false },
-    { title: 'Golang Kubernetes Engineer', company: 'Tether', description: 'Golang, Kubernetes, backend, distributed systems', source: 'mock', tailored: false },
-  ]
+  // Real Remote Jobs API - No key needed, searches AI developer
+  const res = await fetch('https://remotive.com/api/remote-jobs?search=AI%20developer', { cache: 'no-store' })
+  const json = await res.json()
+  const apiJobs = json.jobs || []
 
-  const { data, error } = await supabase.from('jobs').insert(jobs).select()
+  let inserted = 0
+  for (const j of apiJobs.slice(0, 15)) {
+   const { data: exists } = await supabase.from('jobs').select('id').eq('external_id', j.id.toString()).maybeSingle()
+   if (exists) continue
 
-  if (error) return Response.json({ success: false, error: error.message }, { status: 500 })
+   await supabase.from('jobs').insert({
+    external_id: j.id.toString(),
+    title: j.title,
+    company: j.company_name,
+    location: j.candidate_required_location || 'Remote',
+    description: j.description,
+    url: j.url,
+    tailored: false,
+    emailed: false
+   })
+   inserted++
+  }
 
-  return Response.json({ success: true, fetched: 3, inserted: data?.length || 0, envOk: true })
+  return Response.json({ success: true, found: apiJobs.length, inserted })
+ } catch (e: any) {
+  return Response.json({ success: false, error: e.message }, { status: 500 })
+ }
 }
