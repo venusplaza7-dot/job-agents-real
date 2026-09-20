@@ -10,7 +10,7 @@ export async function GET() {
   const myEmail = process.env.MY_EMAIL! || "ron@venushq7.com"
   const supabase = createClient(supabaseUrl, serviceKey)
 
-  // STEP 1: FETCH AI Developer Remote Jobs
+  // STEP 1: FETCH
   const resFetch = await fetch('https://remotive.com/api/remote-jobs?search=AI%20developer', { cache: 'no-store' })
   const jsonFetch = await resFetch.json()
   let inserted = 0
@@ -26,32 +26,35 @@ export async function GET() {
    inserted++
   }
 
-  // STEP 2: TAILOR with Gemini
-  const { data: jobsToTailor } = await supabase.from('jobs').select('*').eq('tailored', false).limit(2)
+  // STEP 2: TAILOR - FIX: include null + false
+  const { data: jobsToTailor } = await supabase.from('jobs').select('*').or('tailored.is.null,tailored.eq.false').limit(2)
   let tailoredCount = 0
+  let tailorError = null
   if (jobsToTailor && jobsToTailor.length > 0) {
    for (const job of jobsToTailor) {
-    const jd = (job.description || '').slice(0, 3000)
-    const prompt = `Return JSON ONLY: {"keywords":["AI"],"tailored_summary":"AI developer summary for ${job.title}","cover_letter":"cover letter 100 words"} Job: ${job.title} at ${job.company} - ${jd}`;
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
-     method: 'POST', headers: { 'Content-Type': 'application/json' },
-     body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-    })
-    const j = await res.json()
-    const raw = j.candidates?.[0]?.content?.parts?.[0]?.text || '{}'
-    const clean = raw.replace(/```json|```/g,'').trim()
-    const content = JSON.parse(clean)
-    await supabase.from('jobs').update({
-     tailored: true, tailored_summary: content.tailored_summary,
-     cover_letter: content.cover_letter, matched_keywords: content.keywords,
-     updated_at: new Date().toISOString()
-    }).eq('id', job.id)
-    tailoredCount++
+    try {
+     const jd = (job.description || '').slice(0, 3000)
+     const prompt = `Return JSON ONLY: {"keywords":["AI"],"tailored_summary":"Summary for ${job.title}","cover_letter":"Cover letter 100 words"} Job: ${job.title} - ${jd}`;
+     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+     })
+     const j = await res.json()
+     if (!j.candidates) throw new Error(JSON.stringify(j).slice(0,500))
+     const raw = j.candidates?.[0]?.content?.parts?.[0]?.text || '{}'
+     const clean = raw.replace(/```json|```/g,'').trim()
+     const content = JSON.parse(clean)
+     await supabase.from('jobs').update({
+      tailored: true, tailored_summary: content.tailored_summary,
+      cover_letter: content.cover_letter, matched_keywords: content.keywords,
+     }).eq('id', job.id)
+     tailoredCount++
+    } catch (e:any) { tailorError = e.message }
    }
   }
 
-  // STEP 3: SEND via Brevo with BCC you
-  const { data: jobsToEmail } = await supabase.from('jobs').select('*').eq('tailored', true).eq('emailed', false).limit(2)
+  // STEP 3: SEND with BCC
+  const { data: jobsToEmail } = await supabase.from('jobs').select('*').eq('tailored', true).or('emailed.is.null,emailed.eq.false').limit(2)
   let emailed = 0
   if (jobsToEmail && jobsToEmail.length > 0) {
    for (const job of jobsToEmail) {
@@ -62,8 +65,8 @@ export async function GET() {
       sender: { email: myEmail, name: "Ron - AI Developer" },
       to: [{ email: myEmail }],
       bcc: [{ email: myEmail }],
-      subject: `${job.company} - ${job.title} - AI Developer Application`,
-      htmlContent: `<h3>${job.title} at ${job.company}</h3><p><a href="${job.url}">${job.url}</a></p><p>${job.tailored_summary}</p><p>${job.cover_letter}</p>`
+      subject: `${job.company} - ${job.title}`,
+      htmlContent: `<h3>${job.title} at ${job.company}</h3><p>${job.url}</p><p>${job.tailored_summary}</p><p>${job.cover_letter}</p>`
      })
     })
     await supabase.from('jobs').update({ emailed: true }).eq('id', job.id)
@@ -71,7 +74,7 @@ export async function GET() {
    }
   }
 
-  return Response.json({ success: true, inserted, tailored: tailoredCount, emailed, bcc: myEmail })
+  return Response.json({ success: true, inserted, found_to_tailor: jobsToTailor?.length || 0, tailored: tailoredCount, emailed, bcc: myEmail, error: tailorError })
  } catch (e: any) {
   return Response.json({ success: false, error: e.message }, { status: 500 })
  }
