@@ -1,0 +1,12 @@
+import { Resend } from "resend";
+export async function sendEmail(job: any, tailored: any) {
+  if (!process.env.RESEND_API_KEY) return { id: "skipped - no RESEND_API_KEY" };
+  const resend = new Resend(process.env.RESEND_API_KEY);
+  return await resend.emails.send({
+    from: process.env.FROM_EMAIL || "Jobs Agent <onboarding@resend.dev>",
+    to: [process.env.TO_EMAIL || "ron@venushq7.com"],
+    bcc: [process.env.BCC_EMAIL || "ron@venushq7.com"],
+    subject: `Tailored: ${job.title} @ ${job.company}`,
+    html: `<h2>${job.title} @ ${job.company}</h2><p>${tailored.tailored_summary}</p><p>${tailored.cover_letter}</p><p><a href="${job.url}">${job.url}</a></p>`
+  });
+}
