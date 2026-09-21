@@ -3,8 +3,8 @@ export const runtime = 'nodejs';
 
 // HARD CODED - Working now that repo is private
 const GROQ_API_KEY = "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";
-const SUPABASE_URL = "https://YOUR_PROJECT.supabase.co"; // REPLACE THIS
-const SUPABASE_KEY = "YOUR_SUPABASE_ANON_KEY_HERE"; // REPLACE THIS
+const SUPABASE_URL = "https://ekubsfgyuqziizfjmcsk.supabase.co/rest/v1/"; 
+const SUPABASE_KEY = "sb_publishable_kHr0-nudVWjliHw_owPm7A_G1NA4i8o"; // REPLACE THIS
 
 export async function GET() {
   try {
