@@ -1,36 +1,13 @@
 import { NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
-
 export const dynamic = "force-dynamic";
-
-// HARDCODED TEST - Your AQ key from earlier
-const HARDCODED_KEY = "AQ.Ab8RN6JdLKFO8VaAUWD7Z_mS03os-CNqJf_-eG0RBsT0O-ohUg";
-
-export async function GET() {
-  try {
-    console.log("Testing key length:", HARDCODED_KEY.length);
-    const ai = new GoogleGenAI({ apiKey: HARDCODED_KEY });
-    
-    const result = await ai.models.generateContent({
-      model: "gemini-1.5-flash",
-      contents: "Say hello, you are testing if API key works. Reply in 10 words."
-    });
-
-    return NextResponse.json({
-      success: true,
-      keyLength: HARDCODED_KEY.length,
-      keyPreview: HARDCODED_KEY.slice(0, 15) + "..." + HARDCODED_KEY.slice(-10),
-      geminiResponse: result.text,
-      message: "✅ API KEY WORKS! Now we can tailor resumes for AI Developer jobs"
-    });
-
-  } catch (e: any) {
-    return NextResponse.json({
-      success: false,
-      keyLength: HARDCODED_KEY.length,
-      error: e.message,
-      fullError: e.toString(),
-      help: "If ACCESS_TOKEN_TYPE_UNSUPPORTED → need @google/genai lib. If API_KEY_INVALID → key is cut short (should be 150+ chars)"
-    }, { status: 500 });
-  }
+const KEY = "AQ.Ab8RN6JdLKFO8VaAUWD7Z_mS03os-CNqJf_-eG0RBsT0O-ohUg";
+export async function GET(){
+ try{
+  const ai = new GoogleGenAI({apiKey: KEY});
+  const r = await ai.models.generateContent({model:"gemini-1.5-flash", contents:"Say hello in 5 words, testing API"});
+  return NextResponse.json({success:true, keyLen: KEY.length, answer: r.text});
+ }catch(e:any){
+  return NextResponse.json({success:false, error: e.message, keyLen: KEY.length}, {status:500});
+ }
 }
