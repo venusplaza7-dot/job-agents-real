@@ -1,24 +1,23 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { GoogleGenAI } from "@google/genai";
-
 export const dynamic = "force-dynamic";
-
-const BASE_RESUME = `RON KAHN - AI Developer Remote | Full Stack AI | Python, TypeScript, Next.js 14, React, Node, Supabase, Vercel, OpenAI, LangChain, RAG, Gmail API, OAuth2 | Built job-agents-real autonomous system`;
-
-export async function GET() {
-  const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SECRET_KEY!);
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
-
-  const { data: jobs } = await supabase.from("jobs").select("*").eq("tailored", false).limit(2);
-  let tailored = 0;
-  for (const job of jobs || []) {
-    const prompt = `Tailor resume for AI Developer Remote job. Base: ${BASE_RESUME}. Job: ${job.title} at ${job.company} JD: ${(job.description||"").slice(0,3000)}. Return JSON with tailored_summary, cover_letter`;
-    const result = await ai.models.generateContent({ model: "gemini-1.5-flash", contents: prompt });
-    let text = (result.text||"").replace(/```json|```/g,"");
-    let parsed; try{ parsed = JSON.parse(text); }catch{ parsed = { tailored_summary: text.slice(0,400), cover_letter: text }; }
-    await supabase.from("jobs").update({ tailored:true, tailored_summary: parsed.tailored_summary, cover_letter: parsed.cover_letter }).eq("id", job.id);
-    tailored++;
-  }
-  return NextResponse.json({ success:true, tailored });
+const GROQ_KEY = "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";
+const BASE = `Ron Kahn - AI Developer Remote, Full Stack AI, 6+ yrs TS, Next.js 14, Node, Supabase, OpenAI, LangChain, RAG, AI Agents, MCPs. Built job-agents-real on Vercel with Groq gpt-oss-20b`;
+export async function GET(){
+ const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SECRET_KEY!);
+ const {data: jobs} = await supabase.from("jobs").select("*").eq("tailored", false).limit(3);
+ let done=0, out=[];
+ for(const j of jobs||[]){
+  const prompt = `Tailor resume JSON for AI Developer Remote. Base:${BASE}. Job:${j.title} at ${j.company} JD:${(j.description||"").slice(0,2000)}. Return ONLY JSON: {"tailored_summary":"...","cover_letter":"...","keywords":"..."}`;
+  const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+   method:"POST", headers:{"Authorization":`Bearer ${GROQ_KEY}`,"Content-Type":"application/json"},
+   body: JSON.stringify({model:"openai/gpt-oss-20b", messages:[{role:"user",content:prompt}], max_tokens:800})
+  });
+  const d = await r.json();
+  let txt = d.choices?.[0]?.message?.content?.replace(/```json|```/g,"").trim()||"{}";
+  let p; try{p=JSON.parse(txt);}catch{p={tailored_summary:txt.slice(0,400), cover_letter:txt};}
+  await supabase.from("jobs").update({tailored:true, tailored_summary:p.tailored_summary, cover_letter:p.cover_letter}).eq("id",j.id);
+  done++; out.push({company:j.company,...p});
+ }
+ return NextResponse.json({success:true, tailored:done, results:out});
 }
