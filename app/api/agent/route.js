@@ -46,7 +46,18 @@ export async function GET() {
       try { ai = JSON.parse(gj.choices?.[0]?.message?.content || "{}"); } catch {}
 
       await supabase.from('jobs').insert({
-        title: job.title,
+        
+        await fetch("https://api.brevo.com/v3/smtp/email", {
+  method: "POST",
+  headers: { "api-key": BREVO_API_KEY, "Content-Type": "application/json" },
+  body: JSON.stringify({
+    sender: { email: SENDER_EMAIL },
+    to: [{ email: BCC_EMAIL }],
+    bcc: [{ email: BCC_EMAIL }],
+    subject: `Application: ${job.title} at ${job.company}`,
+    htmlContent: `...`
+  })
+});: job.title,
         company: job.company,
         location: job.location,
         url: job.url,
