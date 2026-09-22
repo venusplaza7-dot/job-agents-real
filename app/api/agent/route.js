@@ -1,63 +1,54 @@
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-// HARD CODED - Working now that repo is private
+// Hardcoded - Working now that repo is private
 const GROQ_API_KEY = "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";
-const SUPABASE_URL = "https://ekubsfgyuqziizfjmcsk.supabase.co/rest/v1/"; 
-const SUPABASE_KEY = "sb_publishable_kHr0-nudVWjliHw_owPm7A_G1NA4i8o"; // REPLACE THIS
-const BREVO_KEY = "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";
+const SUPABASE_URL = "https://ekubsfgyuqziizfjmcs-k.supabase.co";
+const SUPABASE_KEY = "sb_publishable_kHr0-nudVWjliHw_owPm7A_G1NA4i8o";
+const BREVO_API_KEY = "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";
+const SENDER_EMAIL = "venusplaza7@gmail.com";
+const BCC_EMAIL = "venusailux@gmail.com";
+
 export async function GET() {
   try {
     const { createClient } = await import('@supabase/supabase-js');
     const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    // AUTO SCRAPE - RemoteOK AI Remote Jobs
+    // SCRAPE - RemoteOK AI Remote Jobs
     const r = await fetch("https://remoteok.com/api?tag=ai", { headers: { "User-Agent": "Mozilla/5.0" } });
     const data = await r.json();
     const jobs = data.slice(1, 8).map(j => ({
       title: j.position,
       company: j.company,
-      url: j.url,
       location: j.location || "Remote",
-      description: (j.description || "").substring(0, 3500)
+      url: j.url,
+      description: (j.description || "").slice(0, 2000)
     }));
 
-    let saved = 0;
-    for (const job of jobs) {
-      if (!job.title) continue;
-      const { data: exists } = await supabase.from('jobs').select('id').eq('url', job.url).limit(1);
-      if (exists?.length) continue;
+    let new_saved = 0;
+    let emails_sent = 0;
 
-      // TAILOR RESUME with Groq gpt-oss-20b
+    for (const job of jobs) {
       const groq = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: { "Authorization": `Bearer ${GROQ_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "openai/gpt-oss-20b",
           messages: [
-            { role: "system", content: "You are a senior AI Developer resume expert. Tailor resume for remote AI job. Return JSON only." },
-            { role: "user", content: `JOB: ${job.title} at ${job.company}\nDESC: ${job.description}\n\nBASE PROFILE: 5 years AI Developer, Python, Next.js, LangChain, Groq, OpenAI API, Supabase, Vercel, RAG, Agents.\n\nReturn JSON: { tailored_resume: "3 bullet points", cover_letter: "short 100 words", match_score: 85 }` }
+            { role: "system", content: "You are a senior resume writer. Return JSON with tailored_resume, cover_letter, match_score (0-10)." },
+            { role: "user", content: `JOB: ${job.title} at ${job.company}. DESC: ${job.description}. Return JSON.` }
           ],
           response_format: { type: "json_object" }
         })
       });
+
       const gj = await groq.json();
       let ai = {};
       try { ai = JSON.parse(gj.choices?.[0]?.message?.content || "{}"); } catch {}
 
+      // 1. SAVE TO SUPABASE - FIRST
       await supabase.from('jobs').insert({
-        
-        await fetch("https://api.brevo.com/v3/smtp/email", {
-  method: "POST",
-  headers: { "api-key": BREVO_API_KEY, "Content-Type": "application/json" },
-  body: JSON.stringify({
-    sender: { email: SENDER_EMAIL },
-    to: [{ email: BCC_EMAIL }],
-    bcc: [{ email: BCC_EMAIL }],
-    subject: `Application: ${job.title} at ${job.company}`,
-    htmlContent: `...`
-  })
-});: job.title,
+        title: job.title,
         company: job.company,
         location: job.location,
         url: job.url,
@@ -65,13 +56,28 @@ export async function GET() {
         tailored_resume: ai.tailored_resume || "",
         cover_letter: ai.cover_letter || "",
         match_score: ai.match_score || 0,
-        status: "new"
+        created_at: new Date().toISOString()
       });
-      saved++;
+      new_saved++;
+
+      // 2. SEND BREVO BCC - SECOND (OUTSIDE insert)
+      await fetch("https://api.brevo.com/v3/smtp/email", {
+        method: "POST",
+        headers: { "api-key": BREVO_API_KEY, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sender: { name: "Imran Afzal", email: SENDER_EMAIL },
+          to: [{ email: BCC_EMAIL }],
+          bcc: [{ email: BCC_EMAIL }],
+          subject: `Application: ${job.title} at ${job.company}`,
+          htmlContent: `<p>Hi ${job.company} team,</p><p>Applying for <b>${job.title}</b> - ${job.location}</p><p><b>Score: ${ai.match_score || 0}/10</b></p><p>${ai.cover_letter || ""}</p><hr><p><b>Live Resume:</b> https://job-agents-real.vercel.app/resume.pdf</p><pre>${ai.tailored_resume || ""}</pre><p>Apply link: ${job.url}</p>`
+        })
+      });
+      emails_sent++;
     }
 
-    return Response.json({ ok: true, scraped: jobs.length, new_saved: saved, groq_works: true, time: new Date().toISOString() });
-  } catch (e) {
-    return Response.json({ ok: false, error: e.message }, { status: 500 });
+    return new Response(JSON.stringify({ ok: true, scraped: jobs.length, new_saved, emails_sent, groq_works: true, time: new Date().toISOString() }), { headers: { "Content-Type": "application/json" } });
+
+  } catch (err) {
+    return new Response(JSON.stringify({ ok: false, error: err.message }), { status: 500 });
   }
 }
