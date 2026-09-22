@@ -6,7 +6,7 @@ const GROQ_API_KEY = "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";
 const SUPABASE_URL = "https://ekubsfgyuqziizfjmcs-k.supabase.co";
 const SUPABASE_KEY = "sb_publishable_kHr0-nudVWjliHw_owPm7A_G1NA4i8o";
 const BREVO_API_KEY = "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";
-const SENDER_EMAIL = "venusplaza7@gmail.com";
+const SENDER_EMAIL = "ron@venushq7.com";
 const BCC_EMAIL = "venusailux@gmail.com";
 
 export async function GET() {
