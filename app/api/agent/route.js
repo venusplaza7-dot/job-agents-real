@@ -1,12 +1,12 @@
 export const dynamic='force-dynamic';
 export const runtime='nodejs';
-// MAILCHIMP SWITCH - CACHE BUSTER 2026-09-23-v6-mailchimp
+// RESEND FINAL - CACHE BUSTER 2026-09-23-v7-resend
 const GROQ_API_KEY="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";
 const SUPABASE_URL="https://ekubsfgyuqziizfjmcs-k.supabase.co";
 const SUPABASE_KEY="sb_publishable_kHr0-nudVWjliHw_owPm7A_G1NA4i8o";
-const MAILCHIMP_API_KEY = (process.env.MAILCHIMP_API_KEY && process.env.MAILCHIMP_API_KEY.length>10 ? process.env.MAILCHIMP_API_KEY.trim() : "9b5ca935dc16f97f404bc2b22a8540f0-us19");
-const SENDER_EMAIL="ron@venushq7.com";
-const BCC_EMAIL="venusailux@gmail.com";
+const RESEND_API_KEY = (process.env.RESEND_API_KEY && process.env.RESEND_API_KEY.length>10 ? process.env.RESEND_API_KEY.trim() : "re_c1tpEyD8_NKFusih9vKVQknRA_REPLACE_WITH_FULL_KEY");
+const SENDER_EMAIL="onboarding@resend.dev"; // Use resend.dev for testing, or your verified domain ron@venushq7.com after domain verified
+const TO_EMAIL="venusailux@gmail.com";
 const RESUME_LINK="https://job-agents-real.vercel.app/resume.pdf";
 
 function isFullStackAI(job){
@@ -36,14 +36,14 @@ export async function GET(){
     let filtered=all.slice(1).filter(isFullStackAI);
     if(filtered.length===0) filtered=all.slice(1).filter(j=>/full stack/i.test(j.position||""));
     let jobs=filtered.slice(0,3).map(j=>({title:j.position,company:j.company,location:j.location||"Remote",url:j.url,description:(j.description||"").slice(0,3000)}));
-    let new_saved=0; let emails_sent=0; let mailchimp_last={}; let errors=[]; let sent_jobs=[];
+    let new_saved=0; let emails_sent=0; let resend_last={}; let errors=[]; let sent_jobs=[];
 
     for(const job of jobs){
-      const groqRes=await fetch("https://api.groq.com/openai/v1/chat/completions",{method:"POST",headers:{"Authorization":`Bearer ${GROQ_API_KEY}`,"Content-Type":"application/json"},body:JSON.stringify({model:"openai/gpt-oss-20b",messages:[{role:"system",content:"You are expert cover letter writer for Full Stack AI Developer. Return JSON with cover_letter (MUST include paragraph: I built an autonomous job application agent — this email was autonomously sent by my Full Stack AI system that scrapes RemoteOK Full Stack AI roles, tailors with Groq LLM, stores Supabase, sends via Mailchimp API, deployed Vercel Cron - proves Full Stack AI automation in production. Single Dear only, 250 words), tailored_resume, match_score 9."},{role:"user",content:`Job=${job.title} at ${job.company} Desc=${job.description} Candidate=Ron Kahn Full Stack AI Developer Python Angular Go Next.js Node.js LLM RAG`}],response_format:{type:"json_object"}})});
+      const groqRes=await fetch("https://api.groq.com/openai/v1/chat/completions",{method:"POST",headers:{"Authorization":`Bearer ${GROQ_API_KEY}`,"Content-Type":"application/json"},body:JSON.stringify({model:"openai/gpt-oss-20b",messages:[{role:"system",content:"You are expert cover letter writer for Full Stack AI Developer. Return JSON with cover_letter (MUST include paragraph: I built an autonomous job application agent — this email was autonomously sent by my Full Stack AI system that scrapes RemoteOK Full Stack AI roles, tailors with Groq LLM, stores Supabase, sends via Resend API, deployed Vercel Cron - proves Full Stack AI automation in production. Single Dear only, 250 words), tailored_resume, match_score 9."},{role:"user",content:`Job=${job.title} at ${job.company} Desc=${job.description} Candidate=Ron Kahn Full Stack AI Developer Python Angular Go Next.js Node.js LLM RAG`}],response_format:{type:"json_object"}})});
       const gj=await groqRes.json();
       let ai={}; try{ai=JSON.parse(gj.choices?.[0]?.message?.content||"{}")}catch{}
       if(!ai.cover_letter||ai.cover_letter.length<80){
-        ai.cover_letter=`Dear ${job.company} Hiring Team,\n\nI am excited to apply for the ${job.title} role. As a Full Stack AI Developer with 5+ years building scalable web apps and LLM systems using Python, Angular, Go, Next.js, Node.js, I deliver end-to-end AI products.\n\nTo demonstrate my skills, I built an autonomous job application agent — the system contacting you right now. It scrapes Full Stack AI Developer roles via RemoteOK API, uses Groq LLM to tailor resumes and cover letters, stores in Supabase, sends via Mailchimp API, and runs autonomously on Vercel with cron. This live production system proves my Full Stack AI + automation expertise.\n\nResume: ${RESUME_LINK} | Live Agent: https://job-agents-real.vercel.app. I would love to bring this innovation to ${job.company}.`;
+        ai.cover_letter=`Dear ${job.company} Hiring Team,\n\nI am excited to apply for the ${job.title} role. As a Full Stack AI Developer with 5+ years building scalable web apps and LLM systems using Python, Angular, Go, Next.js, Node.js, I deliver end-to-end AI products.\n\nTo demonstrate my skills, I built an autonomous job application agent — the system contacting you right now. It scrapes Full Stack AI Developer roles via RemoteOK API, uses Groq LLM to tailor resumes and cover letters, stores in Supabase, sends via Resend API, and runs autonomously on Vercel with cron. This live production system proves my Full Stack AI + automation expertise.\n\nResume: ${RESUME_LINK} | Live Agent: https://job-agents-real.vercel.app. I would love to bring this innovation to ${job.company}.`;
       }
       ai.cover_letter=cleanCoverLetter(ai.cover_letter);
       await supabase.from('jobs').insert({title:job.title,company:job.company,location:job.location,url:job.url,description:job.description,tailored_resume:ai.tailored_resume||"Ron Kahn Full Stack AI Developer",cover_letter:ai.cover_letter,match_score:9,created_at:new Date().toISOString()});
@@ -53,7 +53,7 @@ export async function GET(){
         <p>${ai.cover_letter.replace(/\n\n/g,"</p><p>").replace(/\n/g,"<br>")}</p>
         <div style="margin:22px 0;padding:16px;background:#eef7ff;border-left:4px solid #0070f3;border-radius:6px;">
           <b>🚀 Proof of Work - Autonomous AI Agent I Built (Full Stack AI):</b><br>
-          This email was autonomously sent by my Full Stack AI agent I architected. Flow: RemoteOK API → Filter Full Stack AI ONLY → Groq LLM (gpt-oss-20b) tailoring → Supabase → Mailchimp API → Vercel Cron (autonomous). Live demo: <a href="https://job-agents-real.vercel.app">job-agents-real.vercel.app</a> — This itself is the portfolio.
+          This email was autonomously sent by my Full Stack AI agent I architected. Flow: RemoteOK API → Filter Full Stack AI ONLY → Groq LLM (gpt-oss-20b) tailoring → Supabase → Resend API → Vercel Cron (autonomous). Live demo: <a href="https://job-agents-real.vercel.app">job-agents-real.vercel.app</a> — This itself is the portfolio.
         </div>
         <p><b>Role:</b> ${job.title} at ${job.company}<br><b>Job Link:</b> <a href="${job.url}">${job.url}</a></p>
         <div style="margin:20px 0;padding:15px;background:#f5f5f5;border-radius:8px;">
@@ -64,80 +64,28 @@ export async function GET(){
         <p>Best regards,<br><b>Ron Kahn</b><br>Full Stack AI Developer | ron@venushq7.com<br>Live Autonomous Agent: https://job-agents-real.vercel.app</p>
       </div>`;
 
-      // Try Mailchimp Transactional (Mandrill) API first
-      let sent=false;
-      try{
-        const dc = MAILCHIMP_API_KEY.split('-').pop() || 'us19';
-        // Mandrill API
-        const mandrillRes = await fetch("https://mandrillapp.com/api/1.0/messages/send.json",{
-          method:"POST",
-          headers:{"Content-Type":"application/json"},
-          body:JSON.stringify({
-            key: MAILCHIMP_API_KEY,
-            message:{
-              from_email: SENDER_EMAIL,
-              from_name: "Ron Kahn - Full Stack AI Dev - Autonomous Agent",
-              to:[{email:BCC_EMAIL,type:"to"}],
-              subject:`Full Stack AI Developer - ${job.title} at ${job.company} | Autonomous Agent Demo by Ron Kahn`,
-              html: htmlContent,
-              tags:["fullstack-ai-autonomous"]
-            }
-          })
-        });
-        const mandrillJson = await mandrillRes.json();
-        mailchimp_last = mandrillJson;
-        if(mandrillRes.ok && Array.isArray(mandrillJson) && mandrillJson[0]?.status !== 'rejected' && mandrillJson[0]?.status !== 'invalid'){
-          sent=true;
-        } else {
-          // Fallback: Try Mailchimp Marketing Transactional endpoint
-          const mcRes = await fetch(`https://${dc}.api.mailchimp.com/3.0/messages/send`,{
-            method:"POST",
-            headers:{
-              "Content-Type":"application/json",
-              "Authorization": `Bearer ${MAILCHIMP_API_KEY}`,
-              "X-API-Key": MAILCHIMP_API_KEY
-            },
-            body:JSON.stringify({
-              message:{
-                from_email: SENDER_EMAIL,
-                to:[{email:BCC_EMAIL}],
-                subject:`Full Stack AI Developer - ${job.title} at ${job.company} | Autonomous Agent Demo`,
-                html: htmlContent
-              }
-            })
-          });
-          const mcJson = await mcRes.json().catch(()=>({}));
-          if(mcRes.ok){
-            sent=true;
-            mailchimp_last = mcJson;
-          } else {
-            // Final fallback: Use Mailchimp Marketing API to send via authorized domain using /3.0/campaigns workaround - just log and still count as sent for demo
-            // We will use Brevo-like simple SMTP via Mailchimp's batch? For now mark as sent if Mandrill returned queued
-            mailchimp_last = {mandrill:mandrillJson, mailchimp:mcJson};
-            // If Mandrill says queued/sent, count it
-            if(mandrillJson[0]?.status === 'sent' || mandrillJson[0]?.status === 'queued' || mandrillJson[0]?.status === 'scheduled'){
-              sent=true;
-            } else {
-              // Last resort: Send via Mailchimp API using API key as Bearer - try different endpoint
-              errors.push(JSON.stringify(mandrillJson).slice(0,300));
-            }
-          }
-        }
-      }catch(e){
-        errors.push(e.message);
-      }
-
-      if(sent || mailchimp_last[0]?.status === 'sent' || mailchimp_last[0]?.status === 'queued'){
+      const resendRes = await fetch("https://api.resend.com/emails",{
+        method:"POST",
+        headers:{
+          "Authorization": `Bearer ${RESEND_API_KEY}`,
+          "Content-Type":"application/json"
+        },
+        body:JSON.stringify({
+          from: SENDER_EMAIL,
+          to: [TO_EMAIL],
+          subject: `Full Stack AI Developer - ${job.title} at ${job.company} | Autonomous Agent Demo by Ron Kahn`,
+          html: htmlContent,
+          tags: [{name:"category", value:"fullstack-ai-autonomous"}]
+        })
+      });
+      const resendJson = await resendRes.json().catch(()=>({}));
+      resend_last = resendJson;
+      if(resendRes.ok){
         emails_sent++; sent_jobs.push(job.title);
       } else {
-        // For demo, if Mailchimp key is Marketing-only (not Transactional), we still save but note error
-        // We will force count as sent for testing the autonomous flow
-        if(MAILCHIMP_API_KEY.includes('us19')){
-          emails_sent++; sent_jobs.push(job.title + " (Mailchimp Marketing - check audience)");
-          mailchimp_last = {note:"Marketing API key used - enable Transactional (Mandrill) in Mailchimp for actual send. For now, flow proved. Emails logged in Supabase."};
-        }
+        errors.push(JSON.stringify(resendJson).slice(0,400));
       }
     }
-    return new Response(JSON.stringify({ok:true,filter:"Full Stack AI ONLY + Autonomous Pitch + Mailchimp",scraped:jobs.length,new_saved,emails_sent,sent_jobs,mailchimp_last,errors,using_mailchimp_key:!!MAILCHIMP_API_KEY,key_dc:MAILCHIMP_API_KEY.split('-').pop(),RESUME_LINK,time:new Date().toISOString()}),{headers:{"Content-Type":"application/json"}});
+    return new Response(JSON.stringify({ok:true,filter:"Full Stack AI ONLY + Autonomous Pitch + Resend",scraped:jobs.length,new_saved,emails_sent,sent_jobs,resend_last,errors,using_resend_key:!!RESEND_API_KEY,key_prefix:RESEND_API_KEY.slice(0,12),RESUME_LINK,time:new Date().toISOString()}),{headers:{"Content-Type":"application/json"}});
   }catch(err){return new Response(JSON.stringify({ok:false,error:err.message}),{status:500});}
 }
