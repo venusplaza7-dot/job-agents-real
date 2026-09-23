@@ -1,13 +1,13 @@
 export const dynamic='force-dynamic';
 export const runtime='nodejs';
+// CACHE BUSTER 2026-09-23-v5-Hl43k
 const GROQ_API_KEY="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";
 const SUPABASE_URL="https://ekubsfgyuqziizfjmcs-k.supabase.co";
 const SUPABASE_KEY="sb_publishable_kHr0-nudVWjliHw_owPm7A_G1NA4i8o";
-const BREVO_API_KEY = process.env.BREVO_API_KEY || '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 89 bytes";
+const BREVO_API_KEY = (process.env.BREVO_API_KEY && process.env.BREVO_API_KEY.trim().length>20 ? process.env.BREVO_API_KEY.trim() : "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");
 const SENDER_EMAIL="ron@venushq7.com";
 const BCC_EMAIL="venusailux@gmail.com";
 const RESUME_LINK="https://job-agents-real.vercel.app/resume.pdf";
-const DEFAULT_RESUME="Ron Kahn | Full Stack AI Developer | Next.js, Node.js, Python, Angular, Go, LangChain, RAG, Supabase, Vercel";
 
 function isFullStackAI(job){
   const t=(job.position||"").toLowerCase();
@@ -26,6 +26,7 @@ function cleanCoverLetter(text){
   }
   return cleaned.join("\n\n");
 }
+
 export async function GET(){
   try{
     const {createClient}=await import('@supabase/supabase-js');
@@ -34,38 +35,37 @@ export async function GET(){
     const all=await r.json();
     let filtered=all.slice(1).filter(isFullStackAI);
     if(filtered.length===0) filtered=all.slice(1).filter(j=>/full stack/i.test(j.position||""));
-    let jobs=filtered.slice(0,5).map(j=>({title:j.position,company:j.company,location:j.location||"Remote",url:j.url,description:(j.description||"").slice(0,3000)}));
+    let jobs=filtered.slice(0,3).map(j=>({title:j.position,company:j.company,location:j.location||"Remote",url:j.url,description:(j.description||"").slice(0,3000)}));
     let new_saved=0; let emails_sent=0; let brevo_last={}; let brevo_errors=[]; let sent_jobs=[];
+
     for(const job of jobs){
-      const groqRes=await fetch("https://api.groq.com/openai/v1/chat/completions",{method:"POST",headers:{"Authorization":`Bearer ${GROQ_API_KEY}`,"Content-Type":"application/json"},body:JSON.stringify({model:"openai/gpt-oss-20b",messages:[{role:"system",content:"You are expert cover letter writer for Full Stack AI Developer. Return JSON with cover_letter (3 paragraphs, mention autonomous agent built that sends this email itself: scrapes RemoteOK, tailors with Groq LLM, stores Supabase, sends via Brevo, deployed Vercel, no duplicate Dear), tailored_resume, match_score 9-10."},{role:"user",content:`Job=${job.title} at ${job.company} Desc=${job.description} Candidate=Ron Kahn Full Stack AI Developer Python Angular Go`}],response_format:{type:"json_object"}})});
+      const groqRes=await fetch("https://api.groq.com/openai/v1/chat/completions",{method:"POST",headers:{"Authorization":`Bearer ${GROQ_API_KEY}`,"Content-Type":"application/json"},body:JSON.stringify({model:"openai/gpt-oss-20b",messages:[{role:"system",content:"You are expert cover letter writer for Full Stack AI Developer. Return JSON with cover_letter (MUST include paragraph: I built an autonomous job application agent - this email was autonomously sent by my Full Stack AI system that scrapes RemoteOK Full Stack AI roles, tailors with Groq LLM, stores Supabase, sends via Brevo API, deployed Vercel Cron - proves Full Stack AI automation in production. Single Dear only, 250 words), tailored_resume, match_score 9."},{role:"user",content:`Job=${job.title} at ${job.company} Desc=${job.description} Candidate=Ron Kahn Full Stack AI Developer Python Angular Go Next.js Node.js LLM RAG`}],response_format:{type:"json_object"}})});
       const gj=await groqRes.json();
       let ai={}; try{ai=JSON.parse(gj.choices?.[0]?.message?.content||"{}")}catch{}
       if(!ai.cover_letter||ai.cover_letter.length<80){
-        ai.cover_letter=`I am excited to apply for the ${job.title} at ${job.company}. As a Full Stack AI Developer with 5+ years in Python, Angular, Go, Next.js, Node.js, I build scalable microservices and LLM-powered apps.\n\nTo showcase my skills, I built an autonomous job application agent — the system contacting you right now. It scrapes Full Stack AI roles, uses Groq LLM to tailor resumes/cover letters, stores in Supabase, sends via Brevo API, and runs on Vercel with cron. This proves end-to-end Full Stack AI automation.\n\nI would love to bring this innovation to ${job.company}. My resume: ${RESUME_LINK}. Live agent: https://job-agents-real.vercel.app. Thank you.`;
+        ai.cover_letter=`Dear ${job.company} Hiring Team,\n\nI am excited to apply for the ${job.title} role. As a Full Stack AI Developer with 5+ years building scalable web apps and LLM systems using Python, Angular, Go, Next.js, Node.js, I deliver end-to-end AI products.\n\nTo demonstrate my skills, I built an autonomous job application agent — the system contacting you right now. It scrapes Full Stack AI Developer roles via RemoteOK API, uses Groq LLM to tailor resumes and cover letters, stores in Supabase, sends via Brevo API, and runs autonomously on Vercel with cron. This live production system proves my Full Stack AI + automation expertise.\n\nResume: ${RESUME_LINK} | Live Agent: https://job-agents-real.vercel.app. I would love to bring this innovation to ${job.company}.\n\nBest,\nRon Kahn`;
       }
       ai.cover_letter=cleanCoverLetter(ai.cover_letter);
-      if(!ai.tailored_resume) ai.tailored_resume=DEFAULT_RESUME;
-      await supabase.from('jobs').insert({title:job.title,company:job.company,location:job.location,url:job.url,description:job.description,tailored_resume:ai.tailored_resume,cover_letter:ai.cover_letter,match_score:ai.match_score||9,created_at:new Date().toISOString()});
+      await supabase.from('jobs').insert({title:job.title,company:job.company,location:job.location,url:job.url,description:job.description,tailored_resume:ai.tailored_resume||"Ron Kahn Full Stack AI Developer",cover_letter:ai.cover_letter,match_score:9,created_at:new Date().toISOString()});
       new_saved++;
       const html=`<div style="font-family:Arial,sans-serif;line-height:1.7;color:#222;max-width:650px;padding:20px;border:1px solid #eee;border-radius:10px;">
-        <p>Dear ${job.company} Hiring Team,</p>
         <p>${ai.cover_letter.replace(/\n\n/g,"</p><p>").replace(/\n/g,"<br>")}</p>
         <div style="margin:22px 0;padding:16px;background:#eef7ff;border-left:4px solid #0070f3;border-radius:6px;">
-          <b>🚀 Proof of Work:</b> This email was sent by my autonomous Full Stack AI agent I built — RemoteOK API → Groq LLM tailoring → Supabase → Brevo API → Vercel Cron. Live: <a href="https://job-agents-real.vercel.app">job-agents-real.vercel.app</a>
+          <b>🚀 Proof of Work - Autonomous AI Agent I Built (Full Stack AI):</b><br>
+          This email was autonomously sent by my Full Stack AI agent I architected. Flow: RemoteOK API → Filter Full Stack AI ONLY → Groq LLM (gpt-oss-20b) tailoring → Supabase → Brevo API → Vercel Cron (autonomous). Live demo: <a href="https://job-agents-real.vercel.app">job-agents-real.vercel.app</a> — This itself is the portfolio.
         </div>
-        <p><b>Role:</b> ${job.title} at ${job.company}<br><b>Job:</b> <a href="${job.url}">${job.url}</a></p>
-        <div style="margin:25px 0;padding:18px;background:#f5f5f5;border-radius:8px;">
-          <p><b>📄 Resume:</b></p>
-          <a href="${RESUME_LINK}" style="display:inline-block;background:#000;color:#fff;padding:12px 22px;text-decoration:none;border-radius:6px;font-weight:bold;">View / Download Resume</a>
-          <p style="word-break:break-all;font-size:13px;">${RESUME_LINK}</p>
-          <p><b>Tailored Summary:</b><br>${ai.tailored_resume}</p>
+        <p><b>Role:</b> ${job.title} at ${job.company}<br><b>Job Link:</b> <a href="${job.url}">${job.url}</a></p>
+        <div style="margin:20px 0;padding:15px;background:#f5f5f5;border-radius:8px;">
+          <p><b>📄 Resume:</b> <a href="${RESUME_LINK}" style="display:inline-block;background:#000;color:#fff;padding:10px 18px;text-decoration:none;border-radius:5px;">View / Download Resume</a></p>
+          <p style="word-break:break-all;font-size:12px;">${RESUME_LINK}</p>
+          <p><b>Tailored:</b> ${ai.tailored_resume||"Full Stack AI Developer - Python, Angular, Go, Next.js, LLM"}</p>
         </div>
-        <p>Best,<br><b>Ron Kahn</b><br>Full Stack AI Developer<br>ron@venushq7.com | ${RESUME_LINK}</p>
+        <p>Best regards,<br><b>Ron Kahn</b><br>Full Stack AI Developer | ron@venushq7.com<br>Live Autonomous Agent: https://job-agents-real.vercel.app</p>
       </div>`;
-      const brevoRes=await fetch("https://api.brevo.com/v3/smtp/email",{method:"POST",headers:{"api-key":BREVO_API_KEY,"Content-Type":"application/json"},body:JSON.stringify({sender:{name:"Ron Kahn - Full Stack AI Developer",email:SENDER_EMAIL},to:[{email:BCC_EMAIL}],subject:`Full Stack AI Developer - ${job.title} at ${job.company} | Autonomous Agent Demo`,htmlContent:html})});
-      const brevoJson=await brevoRes.json(); brevo_last=brevoJson;
-      if(brevoRes.ok){emails_sent++; sent_jobs.push(job.title);} else {brevo_errors.push(JSON.stringify(brevoJson).slice(0,250));}
+      const brevoRes=await fetch("https://api.brevo.com/v3/smtp/email",{method:"POST",headers:{"api-key":BREVO_API_KEY,"Content-Type":"application/json"},body:JSON.stringify({sender:{name:"Ron Kahn - Full Stack AI Dev - Autonomous Agent",email:SENDER_EMAIL},to:[{email:BCC_EMAIL}],subject:`Full Stack AI Developer - ${job.title} at ${job.company} | Autonomous Agent Demo by Ron Kahn`,htmlContent:html})});
+      const bj=await brevoRes.json(); brevo_last=bj;
+      if(brevoRes.ok){emails_sent++; sent_jobs.push(job.title);} else {brevo_errors.push(JSON.stringify(bj).slice(0,250));}
     }
-    return new Response(JSON.stringify({ok:true,filter:"Full Stack AI ONLY + Autonomous Pitch",scraped:jobs.length,new_saved,emails_sent,sent_jobs,brevo_last,brevo_errors,RESUME_LINK,using_env:!!process.env.BREVO_API_KEY,time:new Date().toISOString()}),{headers:{"Content-Type":"application/json"}});
+    return new Response(JSON.stringify({ok:true,filter:"Full Stack AI ONLY + Autonomous Pitch Included",scraped:jobs.length,new_saved,emails_sent,sent_jobs,brevo_last,brevo_errors,using_env:!!process.env.BREVO_API_KEY,env_len:BREVO_API_KEY.length,RESUME_LINK,time:new Date().toISOString()}),{headers:{"Content-Type":"application/json"}});
   }catch(err){return new Response(JSON.stringify({ok:false,error:err.message}),{status:500});}
 }
