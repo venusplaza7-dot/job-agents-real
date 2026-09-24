@@ -1,3 +1,4 @@
+/* HOURLY: 10 BEST AI ENGINEER JOBS -> REAL COMPANY WEBSITE HR + BCC */
 
 export const dynamic = 'force-dynamic';
 
@@ -60,7 +61,10 @@ async function fetchAllAIJobs(){
 
 function isAIDev(j){
   const t=(j.position||'').toLowerCase();
-  return (t.includes('ai developer')||t.includes('ai engineer')||t.includes('llm engineer')||t.includes('llm developer')||t.includes('rag')||t.includes('genai')||t.includes('full stack ai')) && !t.includes('product manager') && !t.includes('analyst') && !t.includes('marketing');
+  const hasEngineer = t.includes('engineer') || t.includes('developer');
+  const hasAI = t.includes('ai engineer') || t.includes('ai developer') || t.includes('llm engineer') || t.includes('llm developer') || t.includes('rag engineer') || t.includes('genai engineer') || t.includes('machine learning engineer') || t.includes('ml engineer') || t.includes('full stack ai') || (t.includes('ai') && hasEngineer);
+  const blocked = t.includes('product manager') || t.includes('chief of staff') || t.includes('analyst') || t.includes('marketing') || t.includes('recruiter') || t.includes('sales') || t.includes('designer') || t.includes('writer');
+  return hasEngineer && hasAI && !blocked;
 }
 
 function tailor(job){
@@ -86,7 +90,7 @@ export async function GET(req){
   const SENDER='ron@venushq7.com';
   const SENDER_NAME='Ron Kahn';
   const BCC=['venusailux@gmail.com','Venusplaza7@gmail.com'];
-  const LINKEDIN_URL=process.env.LINKEDIN_URL||'https://www.linkedin.com/in/venus-ai-plaza';
+  const LINKEDIN_URL=process.env.LINKEDIN_URL||'https://www.linkedin.com/in/venus-plaza-81044525a';
   const GITHUB_URL=process.env.GITHUB_URL||'https://github.com/venusplaza7-dot';
   
   const dbg={mode:'GO TO COMPANY WEBSITE -> HR EMAIL',sender:SENDER,bcc:BCC,total:0,ai_dev:0,unique:0,skipped:0,sent:0,details:[]};
@@ -99,7 +103,22 @@ export async function GET(req){
   let sentCompanies=new Set();
   try{ const r=await fetch(`${SUPA_URL}/rest/v1/sent_jobs?select=company&limit=500`,{headers:{apikey:SUPA_KEY,Authorization:`Bearer ${SUPA_KEY}`}}); if(r.ok){ (await r.json()).forEach(s=> sentCompanies.add(s.company?.toLowerCase().trim())); } }catch{}
 
-  let toSend=filtered.filter(j=>{ if(!force&&sentCompanies.has(j.company?.toLowerCase().trim())){dbg.skipped++;return false;}return true;}).slice(0,2);
+    // SCORE 10 BEST - AI Engineer first, remote, recent
+  filtered.sort((a,b)=>{
+    const score = (j)=>{
+      let s=0;
+      const t=(j.position||'').toLowerCase();
+      if(t.includes('ai engineer')) s+=10;
+      if(t.includes('llm engineer')) s+=9;
+      if(t.includes('rag engineer')) s+=9;
+      if(t.includes('genai engineer')) s+=8;
+      if(t.includes('ml engineer')) s+=7;
+      if(t.includes('remote')) s+=5;
+      return s;
+    };
+    return score(b)-score(a);
+  });
+  let toSend=filtered.filter(j=>{ if(!force&&sentCompanies.has(j.company?.toLowerCase().trim())){dbg.skipped++;return false;}return true;}).slice(0,10);
   if(toSend.length===0) return Response.json({ok:true,...dbg,message:'All companies contacted'});
 
   for(const job of toSend){
@@ -140,7 +159,7 @@ export async function GET(req){
         sender:{name:SENDER_NAME,email:SENDER},
         to:[{email:hrEmail, name:`${job.company} HR`}],
         bcc:BCC.map(e=>({email:e})),
-        subject:`${job.position} @ ${job.company} – AI Developer tailored: ${skills.slice(0,2).join(', ')} | Ron Kahn`,
+        subject:`${job.position} @ ${job.company} – AI Developer tailored: ${skills.slice(0,10).join(', ')} | Ron Kahn`,
         htmlContent: html,
         replyTo:{email:SENDER}
       })
