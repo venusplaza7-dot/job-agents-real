@@ -1,7 +1,7 @@
 /* HOURLY: 10 BEST AI ENGINEER JOBS -> REAL COMPANY HR EMAIL
    Verified against 7 screenshots - nothing missed
-   Includes: getCompanyDomain, findHREmailFromWebsite, fetchAllAIJobs, isAIDev, tailor, GET with Brevo + Supabase
-   NEW: 14-day company dedup (your repeat fix) - No Brevo guard (you have 300/day)
+   Includes: getCompanyDomain, findHREmailFromWebsite, fetchAllAIJobs, isAIDev, tailor, GET
+   NEW: 14-day company dedup (your repeat fix) + DOMAIN dedup (stops repeat)
 */
 
 export const dynamic = 'force-dynamic';
@@ -17,7 +17,7 @@ async function getCompanyDomain(company){
   for(const url of guesses){
     try{
       const r=await fetch(url,{headers:{'User-Agent':'Mozilla/5.0'}, signal: AbortSignal.timeout(3000), method:'HEAD'});
-      if(r.ok) return new URL(url).hostname;
+      if(r.ok || r.status===301 || r.status===302) return new URL(url).hostname;
     }catch{}
   }
   return `${clean}.com`;
@@ -43,7 +43,7 @@ async function findHREmailFromWebsite(company){
       const hr=emails.find(e=> /hr@|hiring@|jobs@|careers@|talent@|recruiting@/i.test(e));
       if(hr) return {email:hr, domain, sourcePage:page, guessed:false};
       if(emails.length>0){
-        const sameDomain = emails.find(e=> e.toLowerCase().endsWith(`@${domain}`) || e.toLowerCase().includes(domain));
+        const sameDomain = emails.find(e=> e.toLowerCase().endsWith(`@${domain}`) || e.toLowerCase().includes(domain.split('.')[0]));
         if(sameDomain) return {email:sameDomain, domain, sourcePage:page, guessed:false};
       }
     }catch{}
@@ -97,22 +97,23 @@ export async function GET(req){
   const GITHUB_URL=process.env.GITHUB_URL||'https://github.com/venusplaza7-dot';
   const HUNTER_KEY=process.env.HUNTER_API_KEY||'';
 
-  const dbg={mode:'GO TO COMPANY WEBSITE -> HR EMAIL', total:0, ai_dev:0, unique:0, sent:0, details:[], skipped_14day:[], bcc:BCC, sender:SENDER, hunter_enabled:!!HUNTER_KEY};
+  const dbg={mode:'GO TO COMPANY WEBSITE -> HR EMAIL', total:0, ai_dev:0, unique:0, sent:0, details:[], skipped_14day:[], skipped_domain:[], bcc:BCC, sender:SENDER, hunter_enabled:!!HUNTER_KEY};
 
   let jobs=await fetchAllAIJobs(); dbg.total=jobs.length;
   let filtered=jobs.filter(isAIDev);
   const uniq=new Map(); filtered.forEach(j=>{ if(!uniq.has(j.url)) uniq.set(j.url,j); });
   filtered=[...uniq.values()]; dbg.ai_dev=filtered.length;
 
-  // --- 14 DAY COMPANY DEDUP - THIS FIXES YOUR REPEAT ISSUE ---
+  // --- 14 DAY COMPANY + DOMAIN DEDUP - THIS FIXES YOUR REPEAT ---
   let sentCompanies=new Set();
+  let sentDomains=new Set();
   let sentIds=new Set();
   try{
     const fourteenDaysAgo = new Date(Date.now()-14*24*60*60*1000).toISOString();
-    const r1=await fetch(`${SUPA_URL}/rest/v1/sent_jobs?select=company&created_at=gte.${fourteenDaysAgo}`, {headers:{'apikey':SUPA_KEY, 'Authorization':`Bearer ${SUPA_KEY}`}});
+    const r1=await fetch(`${SUPA_URL}/rest/v1/sent_jobs?select=company,domain&created_at=gte.${fourteenDaysAgo}`, {headers:{'apikey':SUPA_KEY, 'Authorization':`Bearer ${SUPA_KEY}`}});
     const recent=await r1.json();
     sentCompanies=new Set((recent||[]).map(x=> (x.company||'').toLowerCase().replace(/[^a-z0-9]/g,'')));
-    
+    sentDomains=new Set((recent||[]).map(x=> (x.domain||'').toLowerCase()));
     const r2=await fetch(`${SUPA_URL}/rest/v1/sent_jobs?select=job_id`, {headers:{'apikey':SUPA_KEY, 'Authorization':`Bearer ${SUPA_KEY}`}});
     const allSent=await r2.json();
     sentIds=new Set((allSent||[]).map(x=> x.job_id));
@@ -134,23 +135,29 @@ export async function GET(req){
     return score(b)-score(a);
   });
 
-  let toSend=filtered.filter(j=>{ 
+  let toSend=filtered.filter(j=>{
     if(!force && sentIds.has(j.id)) return false;
     const cleanCompany=j.company.toLowerCase().replace(/[^a-z0-9]/g,'');
     if(!force && sentCompanies.has(cleanCompany)){
       dbg.skipped_14day.push(`${j.company} - ${j.position}`);
       return false;
     }
-    return true; 
+    return true;
   });
 
-  if(toSend.length===0) return Response.json({ok:true, ...dbg, msg:'No new unique companies - 14-day dedup is working (this fixes your repeat)'});
+  if(toSend.length===0) return Response.json({ok:true, ...dbg, msg:'No new unique companies - 14-day dedup working'});
   toSend=toSend.slice(0,10);
   dbg.unique=toSend.length;
 
   for(const job of toSend){
     const skills=tailor(job);
     let {email:hrEmail, domain, sourcePage, guessed} = await findHREmailFromWebsite(job.company);
+
+    // Domain dedup check AFTER we know real domain - STOPS REPEAT
+    if(!force && sentDomains.has(domain.toLowerCase())){
+      dbg.skipped_domain.push(`${job.company} -> ${domain} already sent in 14 days`);
+      continue;
+    }
 
     // Optional Hunter.io upgrade
     if(HUNTER_KEY && guessed){
