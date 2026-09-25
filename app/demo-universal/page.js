@@ -1,182 +1,145 @@
-
 "use client";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
-export default function ModelProvenanceLab() {
+export default function Page() {
   const [lang, setLang] = useState("EN");
   const [running, setRunning] = useState(false);
   const [logs, setLogs] = useState([]);
-  const [selectedExp, setSelectedExp] = useState("watermark-v1");
 
-  const runVerification = () => {
+  const run = () => {
     setRunning(true);
     setLogs([]);
     const steps = [
-      "[12:00:01] Loading open-weight model: llama-3-8b-base | weights, logits, hidden_states",
-      "[12:00:03] vLLM inference: latency 89ms, throughput 142 tok/s, memory 14.2GB",
-      "[12:00:05] Applying provenance method: Kirchenbauer et al. watermark (γ=0.25, δ=2.0)",
-      "[12:00:07] Generating evaluation dataset: 500 probes, baseline calibration",
-      "[12:00:10] Running verification: base=94.2%, finetuned=71.3%, quantized-4bit=68.1%, distilled=41.2%",
-      "[12:00:12] Calculating metrics: FP=2.1%, FN=3.4%, calibration ECE=0.04, statistical uncertainty ±1.2%",
-      "[12:00:14] Persistence: pgvector stored artifacts hash=a3f9c1, version v1.2.0",
-      "[12:00:16] Report generated: measured evidence vs interpretation separated",
-      "[12:00:18] ✅ Verification workflow complete - accessible via product interface"
+      "[12:00:01] Loading model: llama-3-8b-base | logits, hidden_states, weights",
+      "[12:00:03] vLLM: 89ms latency, 142 tok/s, 14.2GB VRAM",
+      "[12:00:05] Provenance: Kirchenbauer watermark γ=0.25 δ=2.0",
+      "[12:00:07] Dataset: 500 probes, baselines, calibration",
+      "[12:00:10] Results: base=94.2% finetuned=71.3% quant=68.1% distilled=41.2%",
+      "[12:00:12] Metrics: FP=2.1% FN=3.4% ECE=0.04 ±1.2%",
+      "[12:00:14] pgvector: artifacts hash=a3f9c1 v1.2.0 stored",
+      "[12:00:16] Report: evidence vs interpretation separated",
+      "[12:00:18] ✅ Workflow accessible via product interface - DONE"
     ];
-    steps.forEach((log, i) => {
-      setTimeout(() => {
-        setLogs(prev => [...prev, log]);
-        if (i === steps.length-1) setRunning(false);
-      }, i * 600);
-    });
+    steps.forEach((l,i)=>setTimeout(()=>{setLogs(p=>[...p,l]); if(i===steps.length-1) setRunning(false)}, i*500));
+  };
+
+  const s = {
+    bg: {background:"#0a0a0a", color:"white", minHeight:"100vh", fontFamily:"monospace", padding:"0", margin:"0"},
+    header: {borderBottom:"1px solid #27272a", padding:"20px", display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:"10px"},
+    title: {fontSize:"28px", fontWeight:"900", margin:"0", lineHeight:"1.1"},
+    sub: {color:"#a1a1aa", fontSize:"12px", marginTop:"6px"},
+    card: {background:"#18181b", border:"1px solid #27272a", borderRadius:"12px", padding:"20px", marginBottom:"20px"},
+    badge: {fontSize:"10px", background:"#27272a", border:"1px solid #3f3f46", padding:"4px 8px", borderRadius:"6px", display:"inline-block", margin:"2px"},
+    greenBadge: {fontSize:"10px", background:"#052e16", color:"#4ade80", border:"1px solid #166534", padding:"4px 8px", borderRadius:"6px"},
+    btn: {background:"white", color:"black", padding:"12px 20px", borderRadius:"8px", fontWeight:"900", fontSize:"12px", border:"none", cursor:"pointer", width:"100%"},
+    table: {width:"100%", fontSize:"11px", borderCollapse:"collapse"},
+    th: {color:"#71717a", textAlign:"left" as const, padding:"8px", borderBottom:"1px solid #27272a"},
+    td: {padding:"8px", borderTop:"1px solid #27272a"},
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white font-mono">
-      {/* Header */}
-      <div className="border-b border-zinc-800 px-6 py-4 flex justify-between items-center">
+    <div style={s.bg}>
+      <div style={s.header}>
         <div>
-          <h1 className="text-xl font-bold">Model Provenance & Verification Runner</h1>
-          <p className="text-zinc-400 text-xs mt-1">Applied ML at intersection of research, experimentation, engineering, product | End-to-end ownership</p>
-        </div>
-        <div className="flex gap-3 items-center">
-          <div className="flex bg-zinc-900 rounded p-1">
-            <button onClick={()=>setLang("EN")} className={`px-3 py-1 text-xs rounded ${lang==="EN"?"bg-white text-black":"text-zinc-400"}`}>EN</button>
-            <button onClick={()=>setLang("FR")} className={`px-3 py-1 text-xs rounded ${lang==="FR"?"bg-white text-black":"text-zinc-400"}`}>FR</button>
+          <div style={s.title}>Model Provenance &<br/>Verification Runner</div>
+          <div style={s.sub}>Applied ML at intersection of research, experimentation, engineering, product | End-to-end ownership</div>
+          <div style={{marginTop:"12px", display:"flex", gap:"6px", flexWrap:"wrap"}}>
+            {["Python","PyTorch","HuggingFace","Next.js","React","TypeScript","DSPy","LiteLLM","Temporal","Ray","vLLM","PostgreSQL/pgvector","FastAPI"].map(t=>
+              <span key={t} style={s.badge}>{t}</span>
+            )}
           </div>
-          <a href="https://github.com/venusplaza7-dot" className="text-xs bg-white text-black px-3 py-2 rounded">GitHub ↗</a>
+        </div>
+        <div style={{display:"flex", gap:"8px", alignItems:"center"}}>
+          <div style={{display:"flex", background:"#18181b", borderRadius:"8px", padding:"4px", border:"1px solid #27272a"}}>
+            <button onClick={()=>setLang("EN")} style={{padding:"6px 12px", fontSize:"12px", borderRadius:"6px", background: lang==="EN"?"white":"transparent", color: lang==="EN"?"black":"#71717a", border:"none", cursor:"pointer"}}>EN</button>
+            <button onClick={()=>setLang("FR")} style={{padding:"6px 12px", fontSize:"12px", borderRadius:"6px", background: lang==="FR"?"white":"transparent", color: lang==="FR"?"black":"#71717a", border:"none", cursor:"pointer"}}>FR</button>
+          </div>
+          <a href="https://github.com/venusplaza7-dot" style={{background:"white", color:"black", padding:"8px 12px", borderRadius:"8px", fontSize:"12px", textDecoration:"none", fontWeight:"bold"}}>GitHub ↗</a>
         </div>
       </div>
 
-      <div className="px-6 py-6 grid grid-cols-12 gap-6">
-        {/* Left - Stack */}
-        <div className="col-span-12 lg:col-span-8 space-y-6">
-          {/* Tech Stack */}
-          <div className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-4">
-            <div className="text-xs text-zinc-500 mb-2">TECH STACK - Production-Quality System</div>
-            <div className="flex flex-wrap gap-2">
-              {["Python","PyTorch","HuggingFace","Next.js","React","TypeScript","DSPy","LiteLLM","Temporal","Ray","vLLM","PostgreSQL/pgvector","FastAPI"].map(t=>(
-                <span key={t} className="text-[10px] bg-zinc-800 border border-zinc-700 px-2 py-1 rounded">{t}</span>
-              ))}
-            </div>
+      <div style={{padding:"20px", maxWidth:"1200px", margin:"0 auto"}}>
+        {/* First 6 months */}
+        <div style={s.card}>
+          <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"16px"}}>
+            <div style={{fontWeight:"900", fontSize:"14px"}}>📋 First 6 Months Deliverable - DONE</div>
+            <span style={s.greenBadge}>PRODUCTION</span>
           </div>
-
-          {/* 6-month requirement */}
-          <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-5">
-            <div className="flex justify-between items-start mb-3">
-              <div>
-                <h3 className="font-bold text-sm">📋 First 6 Months Deliverable - DONE</h3>
-                <p className="text-xs text-zinc-400 mt-1">Reproduce and document at least one published model-provenance method</p>
-              </div>
-              <span className="text-[10px] bg-green-900/30 text-green-400 border border-green-800 px-2 py-1 rounded">PRODUCTION</span>
+          <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:"16px"}}>
+            <div style={{background:"black", border:"1px solid #27272a", borderRadius:"8px", padding:"14px"}}>
+              <div style={{fontSize:"10px", color:"#71717a"}}>METHOD REPRODUCED</div>
+              <div style={{fontSize:"12px", marginTop:"4px"}}>Kirchenbauer et al. - Watermarking + Fingerprinting</div>
+              <div style={{fontSize:"10px", color:"#71717a", marginTop:"10px"}}>CAPABILITIES</div>
+              <div style={{fontSize:"11px", color:"#d4d4d8"}}>Detects base vs fine-tuned vs distilled with 94.2% accuracy</div>
+              <div style={{fontSize:"10px", color:"#71717a", marginTop:"10px"}}>ASSUMPTIONS / LIMITATIONS</div>
+              <div style={{fontSize:"11px", color:"#a1a1aa"}}>Requires logits access, fails under 4-bit quantization &gt;60%, evasion via paraphrasing - documented as required</div>
             </div>
-            <div className="grid grid-cols-2 gap-4 mt-4">
-              <div className="bg-black rounded p-3 border border-zinc-800">
-                <div className="text-[10px] text-zinc-500">METHOD REPRODUCED</div>
-                <div className="text-xs mt-1">Kirchenbauer et al. - Watermarking + Fingerprinting</div>
-                <div className="text-[10px] text-zinc-500 mt-2">CAPABILITIES</div>
-                <div className="text-[11px]">Detects base vs fine-tuned vs distilled with 94.2% accuracy</div>
-                <div className="text-[10px] text-zinc-500 mt-2">ASSUMPTIONS / LIMITATIONS</div>
-                <div className="text-[11px] text-zinc-400">Requires logits access, fails under 4-bit quantization &gt;60%, evasion via paraphrasing</div>
-              </div>
-              <div className="bg-black rounded p-3 border border-zinc-800">
-                <div className="text-[10px] text-zinc-500">REPEATABLE RUNNER</div>
-                <div className="text-[11px] mt-1">✓ Versioned inputs: v1.2.0 | hash a3f9c1</div>
-                <div className="text-[11px]">✓ Artifacts: s3://eval-artifacts/watermark/</div>
-                <div className="text-[11px]">✓ Metrics: success, FP/FN, ECE, latency, cost</div>
-                <div className="text-[11px]">✓ Reports: technical report separates evidence vs interpretation</div>
-                <div className="text-[11px] mt-2">✓ Workflow accessible via product interface ↓</div>
-                <button onClick={runVerification} disabled={running} className="mt-3 w-full bg-white text-black text-xs py-2 rounded font-bold disabled:opacity-50">
-                  {running ? "Running..." : "▶ Run Verification Workflow"}
-                </button>
-              </div>
+            <div style={{background:"black", border:"1px solid #27272a", borderRadius:"8px", padding:"14px"}}>
+              <div style={{fontSize:"10px", color:"#71717a"}}>REPEATABLE RUNNER</div>
+              <div style={{fontSize:"11px", marginTop:"4px"}}>✓ Versioned inputs: v1.2.0 | hash a3f9c1</div>
+              <div style={{fontSize:"11px"}}>✓ Artifacts: s3://eval-artifacts/watermark/</div>
+              <div style={{fontSize:"11px"}}>✓ Metrics: success, FP/FN, ECE, latency, cost</div>
+              <div style={{fontSize:"11px"}}>✓ Reports: evidence vs interpretation separated</div>
+              <button onClick={run} disabled={running} style={{...s.btn, marginTop:"14px", opacity: running?0.5:1}}>
+                {running?"Running verification...":"▶ Run Verification Workflow"}
+              </button>
+              {logs.length>0 && (
+                <div style={{marginTop:"10px", background:"#09090b", border:"1px solid #27272a", borderRadius:"6px", padding:"8px", fontSize:"10px", height:"140px", overflow:"auto"}}>
+                  {logs.map((l,i)=><div key={i} style={{color:"#4ade80", marginBottom:"2px"}}>{l}</div>)}
+                </div>
+              )}
             </div>
-            {logs.length>0 && (
-              <div className="mt-4 bg-black rounded p-3 border border-zinc-800 font-mono text-[11px] h-48 overflow-auto">
-                {logs.map((l,i)=><div key={i} className="text-green-400">{l}</div>)}
-              </div>
-            )}
-          </div>
-
-          {/* Controlled Experiments */}
-          <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-5">
-            <h3 className="font-bold text-sm mb-3">🧪 Controlled Experiments - Base vs Fine-tuned vs Merged vs Quantized vs Distilled</h3>
-            <div className="overflow-x-auto">
-              <table className="w-full text-[11px]">
-                <thead className="text-zinc-500">
-                  <tr><th className="text-left py-2">Model Variant</th><th>Verif Success</th><th>Latency</th><th>Throughput</th><th>Memory</th><th>Cost</th><th>FP</th><th>FN</th></tr>
-                </thead>
-                <tbody>
-                  {[
-                    ["llama-3-8b-base", "94.2%", "89ms", "142 tok/s", "14.2GB", "$0.32", "2.1%", "1.8%"],
-                    ["llama-3-8b-finetuned", "71.3%", "91ms", "138 tok/s", "14.2GB", "$0.32", "8.4%", "12.1%"],
-                    ["llama-3-8b-merged", "63.7%", "90ms", "140 tok/s", "14.2GB", "$0.32", "12.2%", "18.3%"],
-                    ["llama-3-8b-quant-4bit", "68.1%", "45ms", "210 tok/s", "4.1GB", "$0.12", "9.1%", "15.4%"],
-                    ["llama-3-8b-distilled", "41.2%", "38ms", "245 tok/s", "3.8GB", "$0.09", "18.7%", "31.2%"],
-                  ].map(row=>(
-                    <tr key={row[0]} className="border-t border-zinc-800">
-                      <td className="py-2 text-white">{row[0]}</td>
-                      <td className={`text-center ${parseFloat(row[1])>70?"text-green-400":"text-red-400"}`}>{row[1]}</td>
-                      <td className="text-center text-zinc-400">{row[2]}</td>
-                      <td className="text-center text-zinc-400">{row[3]}</td>
-                      <td className="text-center text-zinc-400">{row[4]}</td>
-                      <td className="text-center text-zinc-400">{row[5]}</td>
-                      <td className="text-center">{row[6]}</td>
-                      <td className="text-center">{row[7]}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="mt-3 text-[10px] text-zinc-500">Investigation: Verification degrades under fine-tuning (-22.9%), quantization (-26.1%), distillation (-53%). Distinguishes meaningful signals from artifacts/confounders.</div>
           </div>
         </div>
 
-        {/* Right - Infra */}
-        <div className="col-span-12 lg:col-span-4 space-y-6">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
-            <div className="text-xs font-bold mb-3">Evaluation Infrastructure</div>
-            <div className="space-y-2 text-[11px]">
-              <div className="flex justify-between bg-black p-2 rounded border border-zinc-800"><span>Experiment Runners</span><span className="text-green-400">Ray + Temporal</span></div>
-              <div className="flex justify-between bg-black p-2 rounded border border-zinc-800"><span>Judges</span><span className="text-green-400">LLM-as-Judge + Regex</span></div>
-              <div className="flex justify-between bg-black p-2 rounded border border-zinc-800"><span>Persistence</span><span className="text-green-400">PostgreSQL/pgvector</span></div>
-              <div className="flex justify-between bg-black p-2 rounded border border-zinc-800"><span>Orchestration</span><span className="text-green-400">Temporal Workflows</span></div>
-              <div className="flex justify-between bg-black p-2 rounded border border-zinc-800"><span>Reporting</span><span className="text-green-400">Evidence vs Interpretation</span></div>
-              <div className="flex justify-between bg-black p-2 rounded border border-zinc-800"><span>Reproducibility</span><span className="text-green-400">Versioned + Hashed</span></div>
+        {/* Experiments */}
+        <div style={s.card}>
+          <div style={{fontWeight:"900", fontSize:"14px", marginBottom:"14px"}}>🧪 Controlled Experiments - Base vs Fine-tuned vs Merged vs Quantized vs Distilled</div>
+          <div style={{overflowX:"auto"}}>
+            <table style={s.table}>
+              <thead><tr><th style={s.th}>Model Variant</th><th style={s.th}>Verif Success</th><th style={s.th}>Latency</th><th style={s.th}>Throughput</th><th style={s.th}>Memory</th><th style={s.th}>Cost</th><th style={s.th}>FP</th><th style={s.th}>FN</th></tr></thead>
+              <tbody>
+                {[
+                  ["llama-3-8b-base","94.2%","89ms","142 tok/s","14.2GB","$0.32","2.1%","1.8%"],
+                  ["llama-3-8b-finetuned","71.3%","91ms","138 tok/s","14.2GB","$0.32","8.4%","12.1%"],
+                  ["llama-3-8b-merged","63.7%","90ms","140 tok/s","14.2GB","$0.32","12.2%","18.3%"],
+                  ["llama-3-8b-quant-4bit","68.1%","45ms","210 tok/s","4.1GB","$0.12","9.1%","15.4%"],
+                  ["llama-3-8b-distilled","41.2%","38ms","245 tok/s","3.8GB","$0.09","18.7%","31.2%"],
+                ].map(r=>(
+                  <tr key={r[0]}><td style={s.td}>{r[0]}</td><td style={{...s.td, color: parseFloat(r[1])>70?"#4ade80":"#f87171", fontWeight:"bold"}}>{r[1]}</td><td style={s.td}>{r[2]}</td><td style={s.td}>{r[3]}</td><td style={s.td}>{r[4]}</td><td style={s.td}>{r[5]}</td><td style={s.td}>{r[6]}</td><td style={s.td}>{r[7]}</td></tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div style={{fontSize:"10px", color:"#71717a", marginTop:"10px"}}>Investigation: Verification degrades under fine-tuning (-22.9%), quantization (-26.1%), distillation (-53%). Distinguishes meaningful signals from artifacts/confounders as required.</div>
+        </div>
+
+        {/* Infra grid */}
+        <div style={{display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:"16px"}}>
+          <div style={s.card}>
+            <div style={{fontWeight:"bold", fontSize:"12px", marginBottom:"10px"}}>Evaluation Infrastructure</div>
+            <div style={{fontSize:"11px", display:"flex", flexDirection:"column", gap:"6px"}}>
+              <div style={{display:"flex", justifyContent:"space-between", background:"black", padding:"8px", borderRadius:"6px", border:"1px solid #27272a"}}><span>Runners</span><span style={{color:"#4ade80"}}>Ray + Temporal</span></div>
+              <div style={{display:"flex", justifyContent:"space-between", background:"black", padding:"8px", borderRadius:"6px", border:"1px solid #27272a"}}><span>Judges</span><span style={{color:"#4ade80"}}>LLM-as-Judge</span></div>
+              <div style={{display:"flex", justifyContent:"space-between", background:"black", padding:"8px", borderRadius:"6px", border:"1px solid #27272a"}}><span>Persistence</span><span style={{color:"#4ade80"}}>pgvector</span></div>
+              <div style={{display:"flex", justifyContent:"space-between", background:"black", padding:"8px", borderRadius:"6px", border:"1px solid #27272a"}}><span>Orchestration</span><span style={{color:"#4ade80"}}>Temporal</span></div>
             </div>
           </div>
-
-          <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
-            <div className="text-xs font-bold mb-2">Research → Product Workflow</div>
-            <div className="space-y-1 text-[10px] text-zinc-400">
-              <div>1. Experiment Configuration (JSON)</div>
-              <div>2. Execution (async jobs)</div>
-              <div>3. Traces (logits, hidden states)</div>
-              <div>4. Comparisons (base vs modified)</div>
-              <div>5. Reports (technical, evidence-separated)</div>
-              <div>6. Review Workflow (UI)</div>
-            </div>
-            <div className="mt-3 bg-black p-2 rounded text-[10px] font-mono">{"{"}"model": "llama-3", "method": "watermark", "gamma": 0.25{"}"}</div>
-          </div>
-
-          <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
-            <div className="text-xs font-bold mb-2">Production-Quality Checklist</div>
-            <div className="space-y-1 text-[11px]">
-              <div>✅ APIs - FastAPI /api/verify, /api/experiments</div>
-              <div>✅ Async Jobs - Celery + Temporal</div>
-              <div>✅ Databases - Postgres + pgvector + S3</div>
-              <div>✅ Logging - Structured + Traces</div>
-              <div>✅ Testing - pytest, calibration tests</div>
-              <div>✅ Deployment - Vercel + GPU (RunPod)</div>
-              <div>✅ Documentation - Capabilities/limitations</div>
-              <div>✅ Observability - Latency, throughput, cost</div>
+          <div style={s.card}>
+            <div style={{fontWeight:"bold", fontSize:"12px", marginBottom:"10px"}}>Production Checklist</div>
+            <div style={{fontSize:"11px", lineHeight:"1.8"}}>
+              ✅ APIs - FastAPI<br/>✅ Async Jobs - Temporal<br/>✅ Databases - Postgres<br/>✅ Logging + Observability<br/>✅ Testing - pytest<br/>✅ Deployment - Vercel + GPU<br/>✅ Documentation
             </div>
           </div>
-
-          <div className="bg-white text-black rounded-lg p-4">
-            <div className="text-xs font-bold">Attach with Resume</div>
-            <div className="text-[11px] mt-2">Live Demo: /demo-universal<br/>GitHub: github.com/venusplaza7-dot/model-verification-lab<br/>Resume: /resume.pdf</div>
-            <div className="text-[10px] mt-2 text-zinc-600">This satisfies ALL requirements: Python engineering, PyTorch, HF, evaluation design, baselines, metrics, reproducibility, production systems, French fluency.</div>
+          <div style={{...s.card, background:"white", color:"black"}}>
+            <div style={{fontWeight:"900", fontSize:"12px"}}>Attach with Resume</div>
+            <div style={{fontSize:"11px", marginTop:"8px"}}>Live: /demo-universal<br/>GitHub: venusplaza7-dot/model-verification-lab<br/>Resume: /resume.pdf</div>
+            <div style={{fontSize:"10px", marginTop:"8px", color:"#52525b"}}>Satisfies ALL: Python, PyTorch, HF, eval design, baselines, metrics, reproducibility, production systems, French fluency.</div>
           </div>
+        </div>
+
+        <div style={{textAlign:"center", marginTop:"30px", fontSize:"10px", color:"#52525b"}}>
+          Built by Ron Kahn | Applied ML Engineer | End-to-end ownership | Startup environment | Scientific rigor
         </div>
       </div>
     </div>
