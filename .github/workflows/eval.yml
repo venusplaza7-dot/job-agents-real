@@ -1,0 +1,12 @@
+name: Model Verification CI
+on: [push]
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - run: pip install torch transformers
+      - run: python evaluation_runner.py
