@@ -1,7 +1,7 @@
 /* HOURLY: 10 BEST AI ENGINEER JOBS -> REAL COMPANY HR EMAIL
-   Verified against 7 screenshots - nothing missed
-   Includes: getCompanyDomain, findHREmailFromWebsite, fetchAllAIJobs, isAIDev, tailor, GET
-   NEW: 14-day company dedup (your repeat fix) + DOMAIN dedup (stops repeat)
+   VERSION: GLOBAL DEDUP + COUNTRY ROTATION - FIXES YOUR REPEAT
+   - Never send to same domain/email EVER again (not just 14 days)
+   - Jumps countries every hour: US -> DE -> GB -> CA -> AU -> NL -> SE -> REMOTE
 */
 
 export const dynamic = 'force-dynamic';
@@ -39,7 +39,7 @@ async function findHREmailFromWebsite(company){
       const r=await fetch(page,{headers:{'User-Agent':'Mozilla/5.0'}, signal: AbortSignal.timeout(5000)});
       if(!r.ok) continue;
       const html=await r.text();
-      const emails=(html.match(emailRegex)||[]).filter(e=> !e.toLowerCase().includes('.png') && !e.toLowerCase().includes('.jpg') && !e.toLowerCase().includes('.svg'));
+      const emails=(html.match(emailRegex)||[]).filter(e=> !e.toLowerCase().includes('.png') && !e.toLowerCase().includes('.jpg'));
       const hr=emails.find(e=> /hr@|hiring@|jobs@|careers@|talent@|recruiting@/i.test(e));
       if(hr) return {email:hr, domain, sourcePage:page, guessed:false};
       if(emails.length>0){
@@ -48,17 +48,51 @@ async function findHREmailFromWebsite(company){
       }
     }catch{}
   }
-  // fallback guess
   return {email:`careers@${domain}`, domain, sourcePage:null, guessed:true};
 }
 
-async function fetchAllAIJobs(){
+function getCountryForThisHour(){
+  const countries = [
+    {code:'us', name:'United States', query:'usa'},
+    {code:'de', name:'Germany', query:'germany'},
+    {code:'gb', name:'United Kingdom', query:'uk'},
+    {code:'ca', name:'Canada', query:'canada'},
+    {code:'au', name:'Australia', query:'australia'},
+    {code:'nl', name:'Netherlands', query:'netherlands'},
+    {code:'se', name:'Sweden', query:'sweden'},
+    {code:'remote', name:'Remote Global', query:'remote'}
+  ];
+  const hour = new Date().getHours();
+  return countries[hour % countries.length];
+}
+
+async function fetchAllAIJobs(country){
   let all=[];
   const UA={'User-Agent':'Mozilla/5.0'};
-  try{ const r=await fetch('https://remoteok.com/api', {headers:UA}); const j=await r.json(); all.push(...j.slice(1).map(x=>({position:x.position, company:x.company, desc:x.description, url:`https://remoteok.com${x.url}`, id:`rok-${x.id}`}))); }catch{}
-  try{ const r=await fetch('https://www.arbeitnow.com/api/job-board-api', {headers:UA}); const j=await r.json(); const data=j.data||[]; all.push(...data.map(x=>({position:x.title, company:x.company_name, desc:x.description, url:x.url, id:`arb-${x.slug}`}))); }catch{}
-  try{ const r=await fetch('https://remotive.com/api/remote-jobs?category=software-dev', {headers:UA}); const j=await r.json(); all.push(...(j.jobs||[]).map(x=>({position:x.title, company:x.company_name, desc:x.description, url:x.url, id:`rem-${x.id}`}))); }catch{}
-  try{ const r=await fetch('https://www.arbeitnow.com/api/job-board-api?search=ai+engineer', {headers:UA}); const j=await r.json(); const data=j.data||[]; all.push(...data.map(x=>({position:x.title, company:x.company_name, desc:x.description, url:x.url, id:`arb-ai-${x.slug}`}))); }catch{}
+  const q = country?.query || '';
+  // Rotate sources with country bias
+  try{ 
+    const r=await fetch(`https://remoteok.com/api?tag=${q}`, {headers:UA}); 
+    const j=await r.json(); 
+    all.push(...j.slice(1).map(x=>({position:x.position, company:x.company, desc:x.description, url:`https://remoteok.com${x.url}`, id:`rok-${x.id}`, country: x.location || q}))); 
+  }catch{}
+  try{ 
+    const r=await fetch(`https://www.arbeitnow.com/api/job-board-api?search=ai+engineer+${q}`, {headers:UA}); 
+    const j=await r.json(); 
+    const data=j.data||[]; 
+    all.push(...data.map(x=>({position:x.title, company:x.company_name, desc:x.description, url:x.url, id:`arb-${x.slug}-${q}`, country: q}))); 
+  }catch{}
+  try{ 
+    const r=await fetch(`https://remotive.com/api/remote-jobs?category=software-dev&search=ai%20engineer%20${q}`, {headers:UA}); 
+    const j=await r.json(); 
+    all.push(...(j.jobs||[]).map(x=>({position:x.title, company:x.company_name, desc:x.description, url:x.url, id:`rem-${x.id}-${q}`, country: q}))); 
+  }catch{}
+  try{ 
+    const r=await fetch(`https://www.arbeitnow.com/api/job-board-api?search=ai+engineer`, {headers:UA}); 
+    const j=await r.json(); 
+    const data=j.data||[]; 
+    all.push(...data.map(x=>({position:x.title, company:x.company_name, desc:x.description, url:x.url, id:`arb-ai-${x.slug}`, country:'global'}))); 
+  }catch{}
   return all;
 }
 
@@ -97,29 +131,31 @@ export async function GET(req){
   const GITHUB_URL=process.env.GITHUB_URL||'https://github.com/venusplaza7-dot';
   const HUNTER_KEY=process.env.HUNTER_API_KEY||'';
 
-  const dbg={mode:'GO TO COMPANY WEBSITE -> HR EMAIL', total:0, ai_dev:0, unique:0, sent:0, details:[], skipped_14day:[], skipped_domain:[], bcc:BCC, sender:SENDER, hunter_enabled:!!HUNTER_KEY};
+  const currentCountry = getCountryForThisHour();
+  const dbg={mode:`COUNTRY ROTATION -> ${currentCountry.name.toUpperCase()} -> HR EMAIL`, country: currentCountry, total:0, ai_dev:0, unique:0, sent:0, details:[], skipped_forever:[], skipped_domain:[], bcc:BCC, sender:SENDER, hunter_enabled:!!HUNTER_KEY};
 
-  let jobs=await fetchAllAIJobs(); dbg.total=jobs.length;
+  let jobs=await fetchAllAIJobs(currentCountry); dbg.total=jobs.length;
   let filtered=jobs.filter(isAIDev);
   const uniq=new Map(); filtered.forEach(j=>{ if(!uniq.has(j.url)) uniq.set(j.url,j); });
   filtered=[...uniq.values()]; dbg.ai_dev=filtered.length;
 
-  // --- 14 DAY COMPANY + DOMAIN DEDUP - THIS FIXES YOUR REPEAT ---
+  // --- GLOBAL FOREVER DEDUP - NEVER SEND TO SAME DOMAIN/EMAIL EVER ---
   let sentCompanies=new Set();
   let sentDomains=new Set();
+  let sentEmails=new Set();
   let sentIds=new Set();
   try{
-    const fourteenDaysAgo = new Date(Date.now()-14*24*60*60*1000).toISOString();
-    const r1=await fetch(`${SUPA_URL}/rest/v1/sent_jobs?select=company,domain&created_at=gte.${fourteenDaysAgo}`, {headers:{'apikey':SUPA_KEY, 'Authorization':`Bearer ${SUPA_KEY}`}});
-    const recent=await r1.json();
-    sentCompanies=new Set((recent||[]).map(x=> (x.company||'').toLowerCase().replace(/[^a-z0-9]/g,'')));
-    sentDomains=new Set((recent||[]).map(x=> (x.domain||'').toLowerCase()));
-    const r2=await fetch(`${SUPA_URL}/rest/v1/sent_jobs?select=job_id`, {headers:{'apikey':SUPA_KEY, 'Authorization':`Bearer ${SUPA_KEY}`}});
+    // Fetch ALL time, not just 14 days
+    const r1=await fetch(`${SUPA_URL}/rest/v1/sent_jobs?select=company,domain,hr_email&limit=10000`, {headers:{'apikey':SUPA_KEY, 'Authorization':`Bearer ${SUPA_KEY}`}});
+    const allHistory=await r1.json();
+    sentCompanies=new Set((allHistory||[]).map(x=> (x.company||'').toLowerCase().replace(/[^a-z0-9]/g,'')));
+    sentDomains=new Set((allHistory||[]).map(x=> (x.domain||'').toLowerCase()).filter(Boolean));
+    sentEmails=new Set((allHistory||[]).map(x=> (x.hr_email||'').toLowerCase()).filter(Boolean));
+    const r2=await fetch(`${SUPA_URL}/rest/v1/sent_jobs?select=job_id&limit=10000`, {headers:{'apikey':SUPA_KEY, 'Authorization':`Bearer ${SUPA_KEY}`}});
     const allSent=await r2.json();
     sentIds=new Set((allSent||[]).map(x=> x.job_id));
   }catch(e){ console.log('Supabase dedup error', e.message); }
 
-  // SCORE 10 BEST - AI Engineer first, remote bonus
   filtered.sort((a,b)=>{
     const score = (j)=>{
       let s=0;
@@ -129,7 +165,8 @@ export async function GET(req){
       if(t.includes('rag engineer')) s+=9;
       if(t.includes('genai engineer')) s+=8;
       if(t.includes('ml engineer')) s+=7;
-      if(t.includes('remote')) s+=5;
+      if(j.country===currentCountry.query) s+=5;
+      if(t.includes('remote')) s+=3;
       return s;
     };
     return score(b)-score(a);
@@ -139,13 +176,13 @@ export async function GET(req){
     if(!force && sentIds.has(j.id)) return false;
     const cleanCompany=j.company.toLowerCase().replace(/[^a-z0-9]/g,'');
     if(!force && sentCompanies.has(cleanCompany)){
-      dbg.skipped_14day.push(`${j.company} - ${j.position}`);
+      dbg.skipped_forever.push(`${j.company} - ${j.position} (company sent before)`);
       return false;
     }
     return true;
   });
 
-  if(toSend.length===0) return Response.json({ok:true, ...dbg, msg:'No new unique companies - 14-day dedup working'});
+  if(toSend.length===0) return Response.json({ok:true, ...dbg, msg:`No new companies in ${currentCountry.name} - all sent before (global dedup working)`});
   toSend=toSend.slice(0,10);
   dbg.unique=toSend.length;
 
@@ -153,13 +190,12 @@ export async function GET(req){
     const skills=tailor(job);
     let {email:hrEmail, domain, sourcePage, guessed} = await findHREmailFromWebsite(job.company);
 
-    // Domain dedup check AFTER we know real domain - STOPS REPEAT
-    if(!force && sentDomains.has(domain.toLowerCase())){
-      dbg.skipped_domain.push(`${job.company} -> ${domain} already sent in 14 days`);
+    // GLOBAL DOMAIN + EMAIL CHECK - NEVER REPEAT SAME EMAIL ADDRESS
+    if(!force && (sentDomains.has(domain.toLowerCase()) || sentEmails.has(hrEmail.toLowerCase()))){
+      dbg.skipped_domain.push(`${job.company} -> ${domain} / ${hrEmail} - already sent EVER, skipping`);
       continue;
     }
 
-    // Optional Hunter.io upgrade
     if(HUNTER_KEY && guessed){
       try{
         const hRes=await fetch(`https://api.hunter.io/v2/domain-search?domain=${domain}&api_key=${HUNTER_KEY}`);
@@ -170,17 +206,23 @@ export async function GET(req){
       }catch{}
     }
 
+    // Double check again after Hunter upgrade
+    if(!force && sentEmails.has(hrEmail.toLowerCase())){
+      dbg.skipped_domain.push(`${job.company} -> ${hrEmail} already used`);
+      continue;
+    }
+
     const html=`
 <div style="font-family:Arial,sans-serif;max-width:640px;margin:0 auto;color:#0f172a">
 <div style="background:#e6f2ff;border-left:4px solid #0ea5e9;padding:12px 16px;margin-bottom:16px;border-radius:4px">
-  <b>🚀 Proof:</b> This email was sent by my autonomous AI agent that scraped ${dbg.total} jobs, filtered ${dbg.ai_dev} AI Engineer roles.<br/>
+  <b>🚀 Proof:</b> This email was sent by my autonomous AI agent that scraped ${dbg.total} jobs from ${currentCountry.name}, filtered ${dbg.ai_dev} AI Engineer roles.<br/>
   Demo: <a href="https://job-agents-real.vercel.app">https://job-agents-real.vercel.app</a> | Resume: <a href="https://job-agents-real.vercel.app/resume.pdf">resume.pdf</a>
 </div>
-<p>Hi ${job.company} Hiring Team,</p>
+<p>Hi ${job.company} Hiring Team in ${currentCountry.name},</p>
 <p>I found your <b>${job.position}</b> role via ${job.url}</p>
 <p>I saw you need <b>${skills.slice(0,3).join(', ')}</b> - I built an autonomous agent that does exactly this: scrapes, filters AI Engineer roles, finds HR on company website, and emails tailored applications.</p>
 <div style="background:#f8fafc;padding:12px;border-radius:6px;border:1px solid #e2e8f0">
-  <b>Role:</b> ${job.position}<br/><b>Company:</b> ${job.company}<br/><b>Matched:</b> ${skills.join(', ')}<br/><b>HR Source:</b> ${guessed?'GUESSED':'FOUND'} ${hrEmail} via ${sourcePage||domain}
+  <b>Role:</b> ${job.position}<br/><b>Company:</b> ${job.company}<br/><b>Country Focus:</b> ${currentCountry.name}<br/><b>Matched:</b> ${skills.join(', ')}<br/><b>HR Source:</b> ${guessed?'GUESSED':'FOUND'} ${hrEmail} via ${sourcePage||domain}
 </div>
 <div style="margin:16px 0;display:flex;gap:10px">
   <a href="https://job-agents-real.vercel.app/resume.pdf" style="background:#0f172a;color:white;padding:10px 16px;border-radius:6px;text-decoration:none">📄 Resume</a>
@@ -194,7 +236,7 @@ export async function GET(req){
   🔗 <a href="${LINKEDIN_URL}" style="color:#0ea5e9">${LINKEDIN_URL}</a><br/>
   💻 <a href="${GITHUB_URL}" style="color:#0ea5e9">${GITHUB_URL}</a>
 </div>
-<div style="font-size:11px;color:#94a3b8;margin-top:12px">Sent via ${SENDER} (verified) | BCC ${BCC.join(', ')} | Job ID ${job.id} | ${new Date().toISOString()}</div>
+<div style="font-size:11px;color:#94a3b8;margin-top:12px">Sent via ${SENDER} (verified) | BCC ${BCC.join(', ')} | Job ID ${job.id} | Country ${currentCountry.name} | ${new Date().toISOString()}</div>
 </div>`;
 
     const res=await fetch('https://api.brevo.com/v3/smtp/email',{
@@ -204,19 +246,22 @@ export async function GET(req){
         sender:{name:SENDER_NAME,email:SENDER},
         to:[{email:hrEmail, name:`${job.company} HR`}],
         bcc:BCC.map(e=>({email:e})),
-        subject:`${job.position} @ ${job.company} - Tailored: ${skills.slice(0,2).join(', ')} | Ron Kahn`,
+        subject:`${job.position} @ ${job.company} (${currentCountry.name}) - Tailored: ${skills.slice(0,2).join(', ')} | Ron Kahn`,
         htmlContent: html,
         replyTo:{email:SENDER}
       })
     });
     const data=await res.json();
     if(res.ok){
-      dbg.sent++; dbg.details.push(`${guessed?'GUESSED HR':'FOUND HR'} ${hrEmail} at ${domain} for ${job.position} via ${sourcePage||domain}`);
+      dbg.sent++; dbg.details.push(`${guessed?'GUESSED HR':'FOUND HR'} ${hrEmail} at ${domain} for ${job.position} [${currentCountry.name}] via ${sourcePage||domain}`);
       await fetch(`${SUPA_URL}/rest/v1/sent_jobs`,{
         method:'POST',
         headers:{'apikey':SUPA_KEY, 'Authorization':`Bearer ${SUPA_KEY}`, 'Content-Type':'application/json', 'Prefer':'return=minimal'},
-        body: JSON.stringify({job_id:job.id, company:job.company, position:job.position, url:job.url, hr_email:hrEmail, domain:domain})
+        body: JSON.stringify({job_id:job.id, company:job.company, position:job.position, url:job.url, hr_email:hrEmail, domain:domain, country: currentCountry.name})
       });
+      sentDomains.add(domain.toLowerCase());
+      sentEmails.add(hrEmail.toLowerCase());
+      sentCompanies.add(job.company.toLowerCase().replace(/[^a-z0-9]/g,''));
     } else {
       dbg.details.push(`FAIL ${hrEmail} ${job.company} ${data.message||''}`);
     }
