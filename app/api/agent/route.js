@@ -242,7 +242,7 @@ ${isMLVerification ? `<p><b>For your role:</b> I built your 6-month roadmap - Mo
   <a href="https://job-agents-real.vercel.app/demo-universal" style="background:#000;color:white;padding:10px 16px;border-radius:30px;text-decoration:none;font-weight:800">👋 Human Demo - 94% Copy Detector</a>
   <a href="https://job-agents-real.vercel.app" style="border:1px solid #0f172a;padding:10px 16px;border-radius:6px;text-decoration:none;color:#0f172a">🤖 Agent Demo</a>
 </div>
-<p>15-min call this week? Built in Lahore (GMT+5) - available your morning. English & French fluent.</p>
+<p>15-min call this week? Built in Lahore (GMT+5) - available your morning. English fluent.</p>
 <p>Best,<br/><b>Ron Kahn</b><br/>AI Developer / Full-Stack Engineer | Python, PyTorch, HF, Next.js, TS</p>
 <div style="border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin-top:16px;font-size:13px">
   📧 <a href="mailto:ron@venushq7.com" style="color:#0ea5e9">ron@venushq7.com</a> | <a href="mailto:Venusplaza7@gmail.com" style="color:#0ea5e9">Venusplaza7@gmail.com</a><br/>
